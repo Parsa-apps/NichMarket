@@ -16,6 +16,7 @@
 - 📊 **تاریخچه کارنامه‌ها** با درصد و رتبه‌بندی قبلی
 - 🛒 **پرداخت درون‌برنامه‌ای مایکت** با بازیابی خریدها
 - 🌙 پشتیبانی کامل **فارسی و RTL** + تم تیره/روشن — کاملاً **آفلاین** (بدون سرور)
+- 🤖 **بیلد خودکار APK** با GitHub Actions (پوش کنید، APK آماده دانلود شود)
 
 ## تکنولوژی‌ها
 
@@ -28,6 +29,7 @@
 | ذخیره‌سازی | DataStore + kotlinx.serialization |
 | داده سوالات | فایل‌های JSON داخل `assets/questions/` |
 | پرداخت | SDK رسمی مایکت (`ir.myket:billing:2.2`) |
+| CI | GitHub Actions → خروجی APK |
 
 ---
 
@@ -68,6 +70,25 @@
 ```bash
 ./gradlew bundleRelease
 ```
+
+---
+
+## بیلد خودکار APK با GitHub Actions 🤖
+
+فایل `.github/workflows/build-apk.yml` در ریپو موجود است و به‌صورت **خودکار** بیلد می‌گیرد:
+
+- **Debug APK** — هر بار که به شاخه `main` پوش کنید (یا از تب Actions دستی اجرا کنید). خروجی قابل نصب برای تست است و در بخش **Artifacts** همان اجرا دانلود می‌شود. نیازی به `gradle-wrapper.jar` ندارد (Gradle در CI نصب می‌شود).
+- **Release APK امضاشده** — فقط در صورتی که ۴ Secret زیر را در Settings → Secrets and variables → Actions تنظیم کنید:
+  | Secret | مقدار |
+  |---|---|
+  | `ANDROID_KEYSTORE_B64` | فایل keystore شما به‌صورت Base64 (`base64 -w0 my-release-key.jks`) |
+  | `ANDROID_KEYSTORE_PASSWORD` | رمز فایل keystore |
+  | `ANDROID_KEY_ALIAS` | نام alias کلید |
+  | `ANDROID_KEY_PASSWORD` | رمز کلید |
+
+  سپس در ریپو از تب **Actions → Build APK → Run workflow** اجرا کنید؛ APK امضاشده در Artifacts ظاهر می‌شود و آماده انتشار در مایکت است.
+
+> نکته: کلید عمومی مایکت (`IAB_PUBLIC_KEY`) برای بیلد لازم نیست — فقط برای عملکرد خرید داخل اپ. برای بیلد امن در CI می‌توانید آن را به‌صورت Secret به BuildConfig تزریق کنید.
 
 ---
 
