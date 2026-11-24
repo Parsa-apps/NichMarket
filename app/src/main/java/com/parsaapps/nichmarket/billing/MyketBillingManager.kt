@@ -21,7 +21,7 @@ sealed interface PurchaseState {
     data object Idle : PurchaseState
     data object Buying : PurchaseState
     data class Success(val sku: String) : PurchaseState
-    data class Cancelled : PurchaseState
+    data object Cancelled : PurchaseState
     data class Error(val message: String) : PurchaseState
 }
 
