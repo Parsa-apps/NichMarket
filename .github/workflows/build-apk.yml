@@ -38,35 +38,40 @@ jobs:
   release-apk:
     name: Signed release APK (needs signing secrets)
     runs-on: ubuntu-latest
-    # فقط وقتی Secretهای امضا در ریپو تنظیم شده باشند اجرا می‌شود
-    if: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
+      SIGNING_KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
+      SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - name: Checkout
+        if: env.HAS_KEYSTORE == 'true'
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
+        if: env.HAS_KEYSTORE == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle 8.10.2
+        if: env.HAS_KEYSTORE == 'true'
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
 
       - name: Decode keystore
+        if: env.HAS_KEYSTORE == 'true'
         run: echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > release.keystore
 
       - name: Build signed release APK
-        env:
-          SIGNING_KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
-          SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        if: env.HAS_KEYSTORE == 'true'
         run: gradle assembleRelease --stacktrace
 
       - name: Upload release APK
+        if: env.HAS_KEYSTORE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: NichMarket-release-apk
