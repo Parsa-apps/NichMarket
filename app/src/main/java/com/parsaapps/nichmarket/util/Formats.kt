@@ -25,7 +25,7 @@ fun formatClock(totalSeconds: Int): String {
 
 /** تاریخ شمسی مطابق منطقه زمانی دستگاه (Android ICU، از API 24). */
 fun formatShamsi(epochMs: Long): String {
-    val cal = android.icu.util.PersianCalendar()
+    val cal = android.icu.util.Calendar.getInstance(android.icu.util.ULocale("fa_IR@calendar=persian"))
     cal.timeInMillis = epochMs
     val year = cal.get(android.icu.util.Calendar.YEAR)
     val month = cal.get(android.icu.util.Calendar.MONTH) + 1
