@@ -20,10 +20,34 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build debug and instrumentation test APKs
+      - name: Build debug APK
         env:
           MYKET_PUBLIC_KEY: ${{ secrets.MYKET_PUBLIC_KEY }}
-        run: ./gradlew assembleDebug assembleDebugAndroidTest --stacktrace
+        shell: bash
+        run: |
+          set +e
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee "$RUNNER_TEMP/nich-build.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E -i '(^e: |error:|failed|could not|what went wrong|caused by:|^> |exception)' "$RUNNER_TEMP/nich-build.log" | head -50 | while IFS= read -r line; do
+              printf '::error::%s\n' "$line"
+            done
+          fi
+          exit "$status"
+      - name: Build instrumentation test APK
+        env:
+          MYKET_PUBLIC_KEY: ${{ secrets.MYKET_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set +e
+          ./gradlew assembleDebugAndroidTest --stacktrace 2>&1 | tee "$RUNNER_TEMP/nich-test-build.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E -i '(^e: |error:|failed|could not|what went wrong|caused by:|^> |exception)' "$RUNNER_TEMP/nich-test-build.log" | head -50 | while IFS= read -r line; do
+              printf '::error::%s\n' "$line"
+            done
+          fi
+          exit "$status"
       - uses: actions/upload-artifact@v4
         with:
           name: NichMarket-debug-apk
