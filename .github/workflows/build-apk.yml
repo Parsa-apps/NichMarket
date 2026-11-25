@@ -57,7 +57,7 @@ jobs:
 
   transfer-debug-apk:
     name: Transfer test APK through GitHub API
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arena/aba102b0-nichmarket'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket'
     needs: debug-apk
     runs-on: ubuntu-latest
     permissions:
