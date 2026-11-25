@@ -19,18 +19,14 @@ import java.util.GregorianCalendar
 @RunWith(AndroidJUnit4::class)
 class CompatibilityTest {
     @Test fun jalaliDatesAndNewYear() {
-        val oldZone = java.util.TimeZone.getDefault()
-        try {
-            java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"))
-            TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
-            fun date(y: Int, m: Int, d: Int) = GregorianCalendar(y, m - 1, d, 12, 0).timeInMillis
-            assertEquals("۱۴۰۳/۱۲/۳۰", formatShamsi(date(2025, 3, 20)))
-            assertEquals("۱۴۰۴/۰۱/۰۱", formatShamsi(date(2025, 3, 21)))
-            assertEquals("۱۴۰۴/۰۹/۰۴", formatShamsi(date(2025, 11, 25)))
-        } finally {
-            java.util.TimeZone.setDefault(oldZone)
-            TimeZone.setDefault(TimeZone.getTimeZone(oldZone.id))
-        }
+        val utc = TimeZone.getTimeZone("UTC")
+        fun date(y: Int, m: Int, d: Int) = GregorianCalendar(java.util.TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(y, m - 1, d, 12, 0)
+        }.timeInMillis
+        assertEquals("۱۴۰۳/۱۲/۳۰", formatShamsi(date(2025, 3, 20), utc))
+        assertEquals("۱۴۰۴/۰۱/۰۱", formatShamsi(date(2025, 3, 21), utc))
+        assertEquals("۱۴۰۴/۰۹/۰۴", formatShamsi(date(2025, 11, 25), utc))
     }
 
     @Test fun oldResultsUseOriginalBankAndNewResultsKeepSnapshot() {
