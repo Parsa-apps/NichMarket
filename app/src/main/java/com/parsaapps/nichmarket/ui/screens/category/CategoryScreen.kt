@@ -64,6 +64,7 @@ import com.parsaapps.nichmarket.ui.components.categoryIcon
 import com.parsaapps.nichmarket.util.formatToman
 import com.parsaapps.nichmarket.util.toPersian
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 
@@ -71,10 +72,16 @@ class CategoryViewModel : ViewModel() {
     val purchasedSkus = Graph.userStore.purchasedSkus
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
     val purchaseState = Graph.billing.purchaseState
+    val restoring = MutableStateFlow(false)
 
     fun purchase(activity: Activity, sku: String) = Graph.billing.purchase(activity, sku)
     fun restorePurchases(onDone: (Boolean) -> Unit) {
-        Graph.billing.refreshPurchases(onDone)
+        if (restoring.value) return
+        restoring.value = true
+        Graph.billing.refreshPurchases { success ->
+            restoring.value = false
+            onDone(success)
+        }
     }
     fun resetPurchaseState() = Graph.billing.resetState()
 
@@ -92,6 +99,7 @@ fun CategoryScreen(
     val category = remember(catId) { vm.categoryOf(catId) }
     val purchased by vm.purchasedSkus.collectAsState()
     val purchaseState by vm.purchaseState.collectAsState()
+    val restoring by vm.restoring.collectAsState()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -126,14 +134,16 @@ fun CategoryScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
+                    IconButton(enabled = !restoring, onClick = {
                         vm.restorePurchases { success ->
                             scope.launch {
                                 snackbar.showSnackbar(if (success) "همگام‌سازی خریدها انجام شد." else "بازیابی انجام نشد؛ اتصال مایکت را بررسی و دوباره تلاش کنید.")
                             }
                         }
                     }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "بازیابی خریدها")
+                        if (restoring) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary)
+                        else Icon(Icons.Filled.Refresh, contentDescription = "بازیابی خریدها")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -216,8 +226,7 @@ fun CategoryScreen(
                         }
                     },
                     onStart = {
-                        if (pack.questions.size > 40) selectedPack = pack
-                        else onStartExam(pack.id, 0)
+                        selectedPack = pack
                     }
                 )
             }
@@ -229,8 +238,8 @@ fun CategoryScreen(
             title = { Text("انتخاب نوع آزمون") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("آزمون کوتاه از سؤال‌های این بسته به‌صورت تصادفی انتخاب می‌شود. زمان متناسب با تعداد سؤال‌هاست.")
-                    listOf(20, 40).filter { it < pack.questions.size }.forEach { count ->
+                    Text("آزمون کوتاه از سؤال‌های این بسته به‌صورت تصادفی و بدون تکرار انتخاب می‌شود. زمان متناسب با تعداد سؤال‌هاست و نمره منفی ندارد.")
+                    listOf(5, 10, 20, 40).filter { it < pack.questions.size }.forEach { count ->
                         val minutes = ((pack.durationMinutes.toLong() * count + pack.questions.size - 1) / pack.questions.size).toInt()
                         OutlinedButton(onClick = {
                             selectedPack = null
@@ -310,6 +319,12 @@ private fun PackCard(
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .6f))
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             )
+            val subjects = pack.questions.map { it.subject }.filter { it.isNotBlank() }.distinct()
+            if (subjects.isNotEmpty()) {
+                Text("سرفصل‌ها: ${subjects.take(4).joinToString("، ")}" +
+                    if (subjects.size > 4) " و ${ (subjects.size - 4).toPersian() } درس دیگر" else "",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             if (owned) {
                 Button(
                     onClick = onStart,

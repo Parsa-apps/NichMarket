@@ -157,8 +157,9 @@ class MyketBillingManager(
             return
         }
         if (h == null || !billingReady.value) {
+            start()
             _purchaseState.value = PurchaseState.Error(
-                "اتصال به مایکت برقرار نشد. مطمئن شوید مایکت روی گوشی نصب و به حساب خود وارد شده‌اید."
+                "اتصال به مایکت آماده نیست. مایکت را بررسی کنید و پس از چند لحظه دوباره تلاش کنید."
             )
             return
         }

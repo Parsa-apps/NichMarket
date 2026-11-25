@@ -68,6 +68,7 @@ import com.parsaapps.nichmarket.data.analysis.examSession
 import com.parsaapps.nichmarket.data.analysis.elapsedExamSeconds
 import com.parsaapps.nichmarket.data.analysis.nextQuestionIndex
 import com.parsaapps.nichmarket.data.model.ActiveExam
+import com.parsaapps.nichmarket.data.model.AppSettings
 import com.parsaapps.nichmarket.data.model.ExamResult
 import com.parsaapps.nichmarket.data.model.Question
 import com.parsaapps.nichmarket.data.model.QuestionPack
@@ -105,6 +106,7 @@ class ExamViewModel : ViewModel() {
     private val _navigateToResult = MutableStateFlow<String?>(null)
     val navigateToResult = _navigateToResult
     val bookmarks = Graph.userStore.bookmarks
+    val settings = Graph.userStore.settings
 
     fun load(packId: String, limit: Int) {
         if (draft != null || pendingExam.value != null) return
@@ -124,6 +126,8 @@ class ExamViewModel : ViewModel() {
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
+            } catch (e: SecurityException) {
+                loadError.value = "این بسته فعال نیست. خریدها را بازیابی کنید یا از بسته رایگان شروع کنید."
             } catch (e: Exception) {
                 loadError.value = "بارگذاری آزمون ناموفق بود. فضای ذخیره‌سازی را بررسی و دوباره تلاش کنید."
             } finally {
@@ -149,6 +153,8 @@ class ExamViewModel : ViewModel() {
                 pendingExam.value = null
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
+            } catch (e: SecurityException) {
+                loadError.value = "این بسته فعال نیست. آزمون قبلی همچنان روی دستگاه است."
             } catch (e: Exception) {
                 loadError.value = "شروع آزمون جدید ناموفق بود. آزمون قبلی همچنان روی دستگاه است."
             } finally {
@@ -160,6 +166,9 @@ class ExamViewModel : ViewModel() {
     private suspend fun createExam(expectedSessionId: String?) {
         val source = Graph.repository.findPack(requestedPackId)
             ?: throw IllegalStateException("Question pack not found")
+        if (source.sku != null && source.sku !in Graph.userStore.purchasedSkus.first()) {
+            throw SecurityException("Package is not purchased")
+        }
         val p = examSession(source, requestedLimit)
         require(p.questions.isNotEmpty() && p.durationMinutes > 0)
         val newDraft = ActiveExam(
@@ -224,11 +233,14 @@ class ExamViewModel : ViewModel() {
 
     fun retryProgress() = saveProgress()
 
-    fun select(questionId: Int, optionIndex: Int) {
+    fun select(questionId: Int, optionIndex: Int, autoAdvance: Boolean) {
         if (!acceptAnswerChanges()) return
         val question = questions.firstOrNull { it.id == questionId } ?: return
         if (optionIndex in question.options.indices) {
             answers.value = answers.value + (questionId to optionIndex)
+            if (autoAdvance && index.value < questions.lastIndex && questions[index.value].id == questionId) {
+                index.value += 1
+            }
             saveProgress()
         }
     }
@@ -382,6 +394,7 @@ fun ExamScreen(
     val loadError by vm.loadError.collectAsState()
     val draftSaveFailed by vm.draftSaveFailed.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState(initial = emptyList())
+    val settings by vm.settings.collectAsState(initial = AppSettings())
     var showQuitDialog by remember { mutableStateOf(false) }
     var showFinishDialog by remember { mutableStateOf(false) }
     BackHandler(enabled = questions.isNotEmpty()) { if (finishedResult == null && !busy) showQuitDialog = true }
@@ -463,7 +476,7 @@ fun ExamScreen(
                 },
                 actions = {
                     Text(
-                        text = formatClock(remaining),
+                        text = if (settings.hideTimer) (if (timeCritical) "زمان کم" else "زمان پنهان") else formatClock(remaining),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = if (timeCritical) MaterialTheme.colorScheme.onErrorContainer
@@ -562,7 +575,7 @@ fun ExamScreen(
                     selected = answers[question.id],
                     bookmarked = bookmarkKey(vm.activePackId, question.id) in bookmarks,
                     onBookmark = { vm.toggleBookmark(question.id) },
-                    onSelect = { option -> vm.select(question.id, option) },
+                    onSelect = { option -> vm.select(question.id, option, settings.autoAdvance) },
                     onClear = { vm.clearAnswer(question.id) }
                 )
                 Spacer(Modifier.height(24.dp))
@@ -702,7 +715,7 @@ private fun QuestionCard(
                 IconButton(onClick = onBookmark) {
                     Icon(
                         imageVector = if (bookmarked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = "ذخیره در علاقه‌مندی‌ها",
+                        contentDescription = if (bookmarked) "حذف از علاقه‌مندی‌ها" else "ذخیره در علاقه‌مندی‌ها",
                         tint = if (bookmarked) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )

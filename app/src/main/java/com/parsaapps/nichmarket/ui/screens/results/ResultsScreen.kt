@@ -2,6 +2,8 @@ package com.parsaapps.nichmarket.ui.screens.results
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,11 +25,16 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +50,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parsaapps.nichmarket.Graph
 import com.parsaapps.nichmarket.data.analysis.studyStatistics
+import com.parsaapps.nichmarket.data.analysis.recentResults
+import com.parsaapps.nichmarket.data.analysis.answeredQuestions
 import com.parsaapps.nichmarket.data.analysis.matchesPersianSearch
 import com.parsaapps.nichmarket.data.model.ExamResult
 import com.parsaapps.nichmarket.ui.components.GradientHeader
@@ -51,13 +60,21 @@ import com.parsaapps.nichmarket.util.formatShamsi
 import com.parsaapps.nichmarket.util.toPersian
 import com.parsaapps.nichmarket.util.toPersianDigits
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 class ResultsViewModel : ViewModel() {
     val results = Graph.userStore.results
-
-    fun clearAll() {
-        viewModelScope.launch { Graph.userStore.clearResults() }
+    val errors = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private fun save(action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try { action() } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                errors.emit("حذف کارنامه انجام نشد؛ دوباره تلاش کنید.")
+            }
+        }
     }
+    fun clearAll() = save { Graph.userStore.clearResults() }
+    fun delete(id: String) = save { Graph.userStore.deleteResult(id) }
 }
 
 @Composable
@@ -65,10 +82,24 @@ fun ResultsScreen(onOpenResult: (String) -> Unit) {
     val vm: ResultsViewModel = viewModel()
     val results by vm.results.collectAsState(initial = emptyList())
     var showClearDialog by remember { mutableStateOf(false) }
+    var resultToDelete by remember { mutableStateOf<ExamResult?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
-    val visibleResults = remember(results, query) { results.filter { matchesPersianSearch(query, it.packTitle) } }
+    var period by rememberSaveable { mutableStateOf(0) }
+    var order by rememberSaveable { mutableStateOf("جدیدترین") }
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(vm) { vm.errors.collect { snackbar.showSnackbar(it) } }
+    val visibleResults = remember(results, query, period, order) {
+        val inPeriod = if (period == 0) results else recentResults(results, period, System.currentTimeMillis())
+        val matched = inPeriod.filter { matchesPersianSearch(query, it.packTitle) }
+        when (order) {
+            "قدیمی‌ترین" -> matched.sortedBy { it.date }
+            "بیشترین درصد" -> matched.sortedWith(compareByDescending<ExamResult> { it.percent }.thenByDescending { it.date })
+            else -> matched.sortedByDescending { it.date }
+        }
+    }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
         item {
             GradientHeader(
                 title = "کارنامه‌ها",
@@ -125,17 +156,41 @@ fun ResultsScreen(onOpenResult: (String) -> Unit) {
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             }
+            item {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0 to "همه زمان‌ها", 7 to "۷ روز", 30 to "۳۰ روز").forEach { (days, title) ->
+                        FilterChip(selected = period == days, onClick = { period = days }, label = { Text(title) })
+                    }
+                }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("جدیدترین", "قدیمی‌ترین", "بیشترین درصد").forEach { title ->
+                        FilterChip(selected = order == title, onClick = { order = title }, label = { Text(title) })
+                    }
+                }
+                TextButton(onClick = { query = ""; period = 0; order = "جدیدترین" }, modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Text("بازنشانی فیلترها")
+                }
+            }
             if (visibleResults.isEmpty()) {
-                item { Text("کارنامه‌ای با این نام پیدا نشد.", modifier = Modifier.padding(20.dp),
+                item { Text("کارنامه‌ای با این فیلترها پیدا نشد.", modifier = Modifier.padding(20.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             items(visibleResults, key = { it.id }) { result ->
-                ResultCard(result = result, onClick = { onOpenResult(result.id) })
+                ResultCard(result = result, onClick = { onOpenResult(result.id) }, onDelete = { resultToDelete = result })
             }
             item { Spacer(Modifier.height(80.dp)) }
         }
     }
+    }
 
+    resultToDelete?.let { result ->
+        AlertDialog(onDismissRequest = { resultToDelete = null }, title = { Text("حذف این کارنامه؟") },
+            text = { Text("کارنامه «${result.packTitle}» و پاسخ‌های ذخیره‌شده آن حذف می‌شوند. علاقه‌مندی‌ها و خریدها تغییری نمی‌کنند.") },
+            confirmButton = { TextButton(onClick = { vm.delete(result.id); resultToDelete = null }) { Text("حذف کارنامه") } },
+            dismissButton = { TextButton(onClick = { resultToDelete = null }) { Text("انصراف") } })
+    }
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
@@ -157,6 +212,7 @@ fun ResultsScreen(onOpenResult: (String) -> Unit) {
 @Composable
 private fun StudySummary(results: List<ExamResult>) {
     val stats = remember(results) { studyStatistics(results) }
+    val week = remember(results) { recentResults(results, 7, System.currentTimeMillis()) }
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(22.dp),
@@ -172,6 +228,10 @@ private fun StudySummary(results: List<ExamResult>) {
                 SummaryMetric(stats.questions.toString().toPersianDigits(), "سؤال", Modifier.weight(1f))
                 SummaryMetric("${stats.accuracyPercent.toPersian()}٪", "پاسخ درست", Modifier.weight(1f))
             }
+            Text("۷ روز اخیر: ${week.size.toPersian()} آزمون • ${answeredQuestions(week).toString().toPersianDigits()} پاسخ",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text("${answeredQuestions(results).toString().toPersianDigits()} پاسخ ثبت‌شده • زمان کل ${formatClock(stats.durationSeconds.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())}",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
             Text("درصد، مجموع پاسخ‌های درست تقسیم بر کل سؤال‌هاست؛ بی‌پاسخ‌ها هم در کل حساب می‌شوند.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
@@ -188,7 +248,7 @@ private fun SummaryMetric(value: String, label: String, modifier: Modifier = Mod
 }
 
 @Composable
-private fun ResultCard(result: ExamResult, onClick: () -> Unit) {
+private fun ResultCard(result: ExamResult, onClick: () -> Unit, onDelete: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -222,6 +282,8 @@ private fun ResultCard(result: ExamResult, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "حذف کارنامه ${result.packTitle}",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             Text(
                 text = "${result.percent.toPersian()}٪",
                 style = MaterialTheme.typography.headlineMedium,

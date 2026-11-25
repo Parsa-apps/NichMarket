@@ -5,8 +5,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.parsaapps.nichmarket.data.model.ActiveExam
+import com.parsaapps.nichmarket.data.model.AppSettings
+import com.parsaapps.nichmarket.data.model.AppTheme
 import com.parsaapps.nichmarket.data.model.ExamResult
 import com.parsaapps.nichmarket.data.model.bookmarkKey
 import kotlinx.coroutines.flow.Flow
@@ -32,6 +36,30 @@ class UserStore(private val context: Context, private val store: DataStore<Prefe
     private val KEY_BOOKMARKS = stringPreferencesKey("bookmarks")
     private val KEY_RESULTS = stringPreferencesKey("results")
     private val KEY_ACTIVE_EXAM = stringPreferencesKey("active_exam")
+    private val KEY_THEME = stringPreferencesKey("theme_mode")
+    private val KEY_LARGE_TEXT = booleanPreferencesKey("large_text")
+    private val KEY_AUTO_ADVANCE = booleanPreferencesKey("auto_advance")
+    private val KEY_HIDE_TIMER = booleanPreferencesKey("hide_timer")
+    private val KEY_DAILY_GOAL = intPreferencesKey("daily_goal")
+
+    val settings: Flow<AppSettings> = store.data.map { prefs ->
+        AppSettings(
+            theme = AppTheme.entries.firstOrNull { it.name == prefs[KEY_THEME] } ?: AppTheme.SYSTEM,
+            largeText = prefs[KEY_LARGE_TEXT] ?: false,
+            autoAdvance = prefs[KEY_AUTO_ADVANCE] ?: false,
+            hideTimer = prefs[KEY_HIDE_TIMER] ?: false,
+            dailyGoal = (prefs[KEY_DAILY_GOAL] ?: 10).coerceIn(5, 100)
+        )
+    }
+    suspend fun setTheme(value: AppTheme) { store.edit { it[KEY_THEME] = value.name } }
+    suspend fun setLargeText(value: Boolean) { store.edit { it[KEY_LARGE_TEXT] = value } }
+    suspend fun setAutoAdvance(value: Boolean) { store.edit { it[KEY_AUTO_ADVANCE] = value } }
+    suspend fun setHideTimer(value: Boolean) { store.edit { it[KEY_HIDE_TIMER] = value } }
+    suspend fun setDailyGoal(value: Int) { require(value in 5..100); store.edit { it[KEY_DAILY_GOAL] = value } }
+    suspend fun resetSettings() { store.edit {
+        it.remove(KEY_THEME); it.remove(KEY_LARGE_TEXT); it.remove(KEY_AUTO_ADVANCE); it.remove(KEY_HIDE_TIMER); it.remove(KEY_DAILY_GOAL)
+    } }
+
 
     val purchasedSkus: Flow<Set<String>> = store.data.map { prefs ->
         prefs[KEY_PURCHASES]?.let { json.decodeFromString(SetSerializer(String.serializer()), it) } ?: emptySet()
@@ -138,6 +166,13 @@ class UserStore(private val context: Context, private val store: DataStore<Prefe
             prefs[KEY_RESULTS] = json.encodeToString(
                 ListSerializer(ExamResult.serializer()), listOf(result) + current.take(99)
             )
+        }
+    }
+
+    suspend fun deleteResult(id: String) {
+        store.edit { prefs ->
+            val current = prefs[KEY_RESULTS]?.let { json.decodeFromString(ListSerializer(ExamResult.serializer()), it) } ?: emptyList()
+            prefs[KEY_RESULTS] = json.encodeToString(ListSerializer(ExamResult.serializer()), current.filterNot { it.id == id })
         }
     }
 

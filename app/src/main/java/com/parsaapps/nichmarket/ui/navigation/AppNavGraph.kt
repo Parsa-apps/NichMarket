@@ -30,12 +30,14 @@ import com.parsaapps.nichmarket.ui.screens.exam.ExamScreen
 import com.parsaapps.nichmarket.ui.screens.home.HomeScreen
 import com.parsaapps.nichmarket.ui.screens.result.ResultScreen
 import com.parsaapps.nichmarket.ui.screens.results.ResultsScreen
+import com.parsaapps.nichmarket.ui.screens.settings.SettingsScreen
 
 object Routes {
     const val HOME = "home"
     const val BOOKMARKS = "bookmarks"
     const val RESULTS = "results"
     const val ABOUT = "about"
+    const val SETTINGS = "settings"
     const val CATEGORY = "category/{catId}"
     const val EXAM = "exam/{packId}/{limit}"
     const val RESULT = "result/{resultId}"
@@ -107,7 +109,8 @@ fun AppRoot() {
                     onOpenResult = { resultId -> navController.navigate(Routes.result(resultId)) },
                     onResults = { navController.navigate(Routes.RESULTS) },
                     onBookmarks = { navController.navigate(Routes.BOOKMARKS) },
-                    onResumeExam = { packId -> navController.navigate(Routes.exam(packId, -1)) }
+                    onResumeExam = { packId -> navController.navigate(Routes.exam(packId, -1)) },
+                    onSettings = { navController.navigate(Routes.SETTINGS) }
                 )
             }
             composable(Routes.CATEGORY) { entry ->
@@ -147,6 +150,7 @@ fun AppRoot() {
             composable(Routes.BOOKMARKS) {
                 BookmarksScreen()
             }
+            composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.ABOUT) {
                 AboutScreen()
             }

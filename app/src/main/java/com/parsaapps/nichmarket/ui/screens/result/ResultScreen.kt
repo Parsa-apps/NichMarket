@@ -46,6 +46,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,7 +67,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parsaapps.nichmarket.Graph
 import com.parsaapps.nichmarket.data.analysis.AnswerStatus
+import com.parsaapps.nichmarket.data.analysis.answerStatus
 import com.parsaapps.nichmarket.data.analysis.matchesReviewQuestion
+import com.parsaapps.nichmarket.data.analysis.comparablePrevious
 import com.parsaapps.nichmarket.data.analysis.subjectPerformance
 import com.parsaapps.nichmarket.data.model.ExamResult
 import com.parsaapps.nichmarket.data.model.Question
@@ -81,7 +84,6 @@ import kotlinx.coroutines.launch
 
 class ResultViewModel : ViewModel() {
     val results = Graph.userStore.results
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val bookmarks = Graph.userStore.bookmarks
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -95,13 +97,9 @@ class ResultViewModel : ViewModel() {
 fun ResultScreen(resultId: String, onBack: () -> Unit) {
     val vm: ResultViewModel = viewModel()
     val context = LocalContext.current
-    val results by vm.results.collectAsState()
+    val results by vm.results.collectAsState(initial = null)
     val bookmarks by vm.bookmarks.collectAsState()
-    val result = remember(resultId, results) { results.firstOrNull { it.id == resultId } }
-
-    LaunchedEffect(resultId, results) {
-        if (results.isNotEmpty() && results.none { it.id == resultId }) onBack()
-    }
+    val result = remember(resultId, results) { results?.firstOrNull { it.id == resultId } }
 
     if (result == null) {
         Column(
@@ -109,7 +107,8 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("در حال بارگذاری نتیجه…")
+            Text(if (results == null) "در حال بارگذاری نتیجه…" else "این کارنامه پیدا نشد یا حذف شده است.")
+            if (results != null) TextButton(onClick = onBack) { Text("بازگشت") }
         }
         return
     }
@@ -122,10 +121,14 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
     val reviewQuestions = result.questionSnapshot ?: pack?.questions.orEmpty()
     val answers = remember(result.id) { result.answers }
     val subjectStats = remember(reviewQuestions, answers) { subjectPerformance(reviewQuestions, answers) }
+    val previous = remember(result, results) { comparablePrevious(result, results.orEmpty()) }
     var reviewFilter by rememberSaveable(result.id) { mutableStateOf("همه") }
     var selectedSubject by rememberSaveable(result.id) { mutableStateOf("") }
     var query by rememberSaveable(result.id) { mutableStateOf("") }
-    val filteredQuestions = remember(reviewQuestions, answers, reviewFilter, selectedSubject, query) {
+    var difficulty by rememberSaveable(result.id) { mutableStateOf("") }
+    var onlyBookmarks by rememberSaveable(result.id) { mutableStateOf(false) }
+    val difficulties = remember(reviewQuestions) { reviewQuestions.map { it.difficulty }.filter { it.isNotBlank() }.distinct().sorted() }
+    val filteredQuestions = remember(reviewQuestions, answers, reviewFilter, selectedSubject, query, difficulty, onlyBookmarks, bookmarks, pack) {
         val status = when (reviewFilter) {
             "نادرست" -> AnswerStatus.WRONG
             "بی‌پاسخ" -> AnswerStatus.BLANK
@@ -133,7 +136,12 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
             else -> null
         }
         reviewQuestions.filter { question ->
-            matchesReviewQuestion(question, answers, status, selectedSubject, query)
+            val bookmarkAvailable = legacy || pack?.questions?.any { it == question } == true
+            val key = if (legacy) "${result.packId}:${question.id}" else bookmarkKey(result.packId, question.id)
+            matchesReviewQuestion(question, answers, status, selectedSubject, query) &&
+                (reviewFilter != "نیاز به مرور" || answerStatus(question, answers) != AnswerStatus.CORRECT) &&
+                (difficulty.isEmpty() || question.difficulty == difficulty) &&
+                (!onlyBookmarks || (bookmarkAvailable && key in bookmarks))
         }
     }
 
@@ -176,6 +184,31 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item { ScoreCard(result) }
+            item {
+                val answered = (result.correct + result.wrong).coerceAtLeast(0)
+                Text(if (answered > 0) "میانگین زمان هر پاسخ: ${formatClock(result.spentSeconds.coerceAtLeast(0) / answered)} • زمان کل تقسیم بر تعداد پاسخ‌ها"
+                    else "در این آزمون پاسخی ثبت نشده است.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            previous?.let { older ->
+                item {
+                    val delta = result.percent - older.percent
+                    val description = when {
+                        delta > 0 -> "${delta.toPersian()} واحد درصد بیشتر"
+                        delta < 0 -> "${(-delta).toPersian()} واحد درصد کمتر"
+                        else -> "بدون تغییر"
+                    }
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                        shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("مقایسه با آزمون مشابه", style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            Text("$description نسبت به ${formatShamsi(older.date)}؛ مجموعه سؤال‌ها یکسان است.",
+                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        }
+                    }
+                }
+            }
             if (subjectStats.isNotEmpty()) {
                 item {
                     Card(
@@ -225,7 +258,7 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("همه", "نادرست", "بی‌پاسخ", "درست").forEach { filter ->
+                    listOf("همه", "نیاز به مرور", "نادرست", "بی‌پاسخ", "درست").forEach { filter ->
                         FilterChip(
                             selected = reviewFilter == filter,
                             onClick = { reviewFilter = filter },
@@ -252,6 +285,17 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
                             label = { Text(stat.subject) })
                     }
                 }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = difficulty.isEmpty(), onClick = { difficulty = "" }, label = { Text("همه سطح‌ها") })
+                    difficulties.forEach { level ->
+                        FilterChip(selected = difficulty == level, onClick = { difficulty = level }, label = { Text(level) })
+                    }
+                    FilterChip(selected = onlyBookmarks, onClick = { onlyBookmarks = !onlyBookmarks }, label = { Text("فقط علاقه‌مندی‌ها") })
+                }
+                TextButton(onClick = { reviewFilter = "همه"; selectedSubject = ""; query = ""; difficulty = ""; onlyBookmarks = false }) {
+                    Text("پاک کردن فیلترها")
+                }
                 Text("${filteredQuestions.size.toPersian()} از ${reviewQuestions.size.toPersian()} سؤال",
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -268,7 +312,8 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
                         number = reviewQuestions.indexOf(question) + 1,
                         question = question,
                         userAnswer = userAnswer,
-                        bookmarked = (if (legacy) "${result.packId}:${question.id}" else bookmarkKey(result.packId, question.id)) in bookmarks,
+                        bookmarked = (legacy || pack?.questions?.any { it == question } == true) &&
+                            (if (legacy) "${result.packId}:${question.id}" else bookmarkKey(result.packId, question.id)) in bookmarks,
                         canBookmark = legacy || pack?.questions?.any { it == question } == true,
                         onBookmark = { vm.toggleBookmark(result.packId, question.id, legacy) }
                     )
@@ -389,7 +434,7 @@ private fun ReviewCard(
                 IconButton(onClick = onBookmark, enabled = canBookmark) {
                     Icon(
                         imageVector = if (bookmarked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = "ذخیره",
+                        contentDescription = if (bookmarked) "حذف از علاقه‌مندی‌ها" else "ذخیره در علاقه‌مندی‌ها",
                         tint = if (bookmarked) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )

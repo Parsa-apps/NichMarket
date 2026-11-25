@@ -7,6 +7,8 @@ import com.parsaapps.nichmarket.data.UserStore
 import com.parsaapps.nichmarket.data.analysis.elapsedExamSeconds
 import com.parsaapps.nichmarket.data.analysis.nextQuestionIndex
 import com.parsaapps.nichmarket.data.model.ActiveExam
+import com.parsaapps.nichmarket.data.model.AppSettings
+import com.parsaapps.nichmarket.data.model.AppTheme
 import com.parsaapps.nichmarket.data.model.ExamResult
 import com.parsaapps.nichmarket.data.model.Question
 import com.parsaapps.nichmarket.data.model.QuestionPack
@@ -52,6 +54,28 @@ class ExamRecoveryTest {
         assertTrue(Json.decodeFromString<ActiveExam>(oldJson).markedQuestionIds.isEmpty())
     }
 
+    @Test fun settingsResetDoesNotDeletePurchasesOrBookmarks() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = File(context.cacheDir, "settings-${UUID.randomUUID()}.preferences_pb")
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val store = UserStore(context, PreferenceDataStoreFactory.create(scope = scope) { file })
+        try {
+            assertEquals(AppSettings(), store.settings.first())
+            store.addPurchase("purchased")
+            store.toggleBookmark("pack", 2)
+            store.setTheme(AppTheme.DARK)
+            store.setLargeText(true)
+            store.setAutoAdvance(true)
+            store.setHideTimer(true)
+            store.setDailyGoal(20)
+            assertEquals(AppSettings(AppTheme.DARK, true, true, true, 20), store.settings.first())
+            store.resetSettings()
+            assertEquals(AppSettings(), store.settings.first())
+            assertEquals(setOf("purchased"), store.purchasedSkus.first())
+            assertEquals(listOf("v2:pack:2"), store.bookmarks.first())
+        } finally { scope.cancel(); file.delete() }
+    }
+
     @Test fun draftTransactionsProtectNewerWritesAndCompleteAtomically() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = File(context.cacheDir, "test-${UUID.randomUUID()}.preferences_pb")
@@ -76,6 +100,8 @@ class ExamRecoveryTest {
             assertEquals(listOf(result), store.results.first())
             store.completeExam(result, other.sessionId)
             assertEquals(1, store.results.first().size)
+            store.deleteResult("other")
+            assertTrue(store.results.first().isEmpty())
         } finally {
             scope.cancel()
             file.delete()

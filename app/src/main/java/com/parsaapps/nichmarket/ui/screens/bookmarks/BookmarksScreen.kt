@@ -3,6 +3,7 @@ package com.parsaapps.nichmarket.ui.screens.bookmarks
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -71,6 +75,9 @@ fun BookmarksScreen() {
     val bookmarks by vm.bookmarks.collectAsState(initial = emptyList())
     var query by rememberSaveable { mutableStateOf("") }
     var selectedSubject by rememberSaveable { mutableStateOf("") }
+    var selectedPack by rememberSaveable { mutableStateOf("") }
+    var selectedDifficulty by rememberSaveable { mutableStateOf("") }
+    var cards by remember { mutableStateOf<List<BookmarkItem>?>(null) }
 
     val savedItems = remember(bookmarks) {
         bookmarks.mapNotNull { key ->
@@ -86,9 +93,13 @@ fun BookmarksScreen() {
         }
     }
     val subjects = remember(savedItems) { savedItems.map { it.question.subject }.filter { it.isNotBlank() }.distinct().sorted() }
-    val visibleItems = remember(savedItems, query, selectedSubject) {
+    val packs = remember(savedItems) { savedItems.map { it.packId to it.packTitle }.distinctBy { it.first }.sortedBy { it.second } }
+    val difficulties = remember(savedItems) { savedItems.map { it.question.difficulty }.filter { it.isNotBlank() }.distinct().sorted() }
+    val visibleItems = remember(savedItems, query, selectedSubject, selectedPack, selectedDifficulty) {
         savedItems.filter { item ->
             (selectedSubject.isEmpty() || item.question.subject == selectedSubject) &&
+                (selectedPack.isEmpty() || item.packId == selectedPack) &&
+                (selectedDifficulty.isEmpty() || item.question.difficulty == selectedDifficulty) &&
                 matchesPersianSearch(query, item.packTitle, item.question.subject,
                     item.question.text, item.question.options.joinToString(" "), item.question.explanation.orEmpty())
         }
@@ -126,6 +137,28 @@ fun BookmarksScreen() {
                             label = { Text(subject) })
                     }
                 }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = selectedPack.isEmpty(), onClick = { selectedPack = "" }, label = { Text("همه بسته‌ها") })
+                    packs.forEach { (id, title) ->
+                        FilterChip(selected = selectedPack == id, onClick = { selectedPack = id }, label = { Text(title) })
+                    }
+                }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = selectedDifficulty.isEmpty(), onClick = { selectedDifficulty = "" }, label = { Text("همه سطح‌ها") })
+                    difficulties.forEach { difficulty ->
+                        FilterChip(selected = selectedDifficulty == difficulty, onClick = { selectedDifficulty = difficulty },
+                            label = { Text(difficulty) })
+                    }
+                }
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = { cards = visibleItems.toList() }, enabled = visibleItems.isNotEmpty()) { Text("مرور فلش‌کارتی") }
+                    TextButton(onClick = { query = ""; selectedSubject = ""; selectedPack = ""; selectedDifficulty = "" }) {
+                        Text("پاک کردن فیلترها")
+                    }
+                }
                 Text(
                     text = "${visibleItems.size.toPersian()} از ${savedItems.size.toPersian()} سؤال ذخیره‌شده",
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
@@ -147,6 +180,43 @@ fun BookmarksScreen() {
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
+    cards?.let { FlashcardDialog(it, onClose = { cards = null }) }
+}
+
+/** A local, temporary review session; answers never alter the exam history. */
+@Composable
+private fun FlashcardDialog(initial: List<BookmarkItem>, onClose: () -> Unit) {
+    var order by remember(initial) { mutableStateOf(initial) }
+    var position by remember(initial) { mutableStateOf(0) }
+    var revealed by remember(initial) { mutableStateOf(false) }
+    val item = order.getOrNull(position) ?: return
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("مرور فلش‌کارتی • ${(position + 1).toPersian()} از ${order.size.toPersian()}") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(item.packTitle + if (item.legacy) " • نسخه قبلی" else "", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary)
+                if (item.question.subject.isNotBlank()) Text(item.question.subject, style = MaterialTheme.typography.labelMedium)
+                Text(item.question.text, style = MaterialTheme.typography.bodyLarge)
+                TextButton(onClick = { revealed = !revealed }) { Text(if (revealed) "پنهان کردن پاسخ" else "نمایش پاسخ") }
+                if (revealed) {
+                    item.question.options.forEachIndexed { index, option ->
+                        Text("${(index + 1).toPersian()}. $option" + if (index == item.question.answerIndex) " ✓" else "",
+                            color = if (index == item.question.answerIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    }
+                    item.question.explanation?.takeIf { it.isNotBlank() }?.let { Text("توضیح: $it") }
+                    if (item.legacy) Text("محتوای نسخه قبلی است و ممکن است اصلاح شده باشد.", style = MaterialTheme.typography.bodySmall)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { position--; revealed = false }, enabled = position > 0, modifier = Modifier.weight(1f)) { Text("قبلی") }
+                    Button(onClick = { position++; revealed = false }, enabled = position < order.lastIndex, modifier = Modifier.weight(1f)) { Text("بعدی") }
+                }
+                TextButton(onClick = { order = order.shuffled(); position = 0; revealed = false }, enabled = order.size > 1) { Text("ترتیب تصادفی") }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("پایان مرور") } }
+    )
 }
 
 @Composable
