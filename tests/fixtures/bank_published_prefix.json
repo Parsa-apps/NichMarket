@@ -1,0 +1,34 @@
+{
+  "omoomi_free_demo": {
+    "count": 10,
+    "sha256": "bbf979e4d9a083c38ae5e6618620617a0d0b6d92a22856f2827f2ba0755d556b"
+  },
+  "omoomi_full_1": {
+    "count": 66,
+    "sha256": "6f12f4d7b28f405bc8683c2229b4c5783f509bb7bc49835482086066db784449"
+  },
+  "amoozesh_free_demo": {
+    "count": 10,
+    "sha256": "f47c1b18451e41559972b6218e0e669c3394d4d9da33e3ba0863f35aab9c13ca"
+  },
+  "amoozesh_full_1": {
+    "count": 40,
+    "sha256": "6852bc334eebac289110355f15fb254838c9c3c132e4426e07c60c32eb1b3745"
+  },
+  "bank_free_demo": {
+    "count": 10,
+    "sha256": "b58b7ca755547b05c5ef92a3c32c8dfd914f35f7935d0db0f6a0a715e637dded"
+  },
+  "bank_full_1": {
+    "count": 40,
+    "sha256": "d1992494979043e4b822b1794232e6f4c73afa0aaa6663eaa1e24e6bb710ad00"
+  },
+  "dadgostari_free_demo": {
+    "count": 10,
+    "sha256": "f9ed8ef209688605f1e1668eda16782e31a4351d282f7deeb6fb5fef0d31d21b"
+  },
+  "dadgostari_full_1": {
+    "count": 40,
+    "sha256": "52c635632b3ebc91be6a94cda142c02bf747ec9e148f2ac6ea428c4de6f728c7"
+  }
+}

@@ -35,7 +35,11 @@ data class Question(
     val text: String,
     val options: List<String>,
     val answerIndex: Int,
-    val explanation: String? = null
+    val explanation: String? = null,
+    /** درس/سرفصل سوال (مثلاً «ریاضی و آمار») — برای نمایش در آزمون و مرور */
+    val subject: String = "",
+    /** سطح دشواری: «آسان» | «متوسط» | «دشوار» */
+    val difficulty: String = ""
 )
 
 /** نتیجه یک آزمون انجام‌شده */
@@ -51,10 +55,27 @@ data class ExamResult(
     val total: Int,
     val spentSeconds: Int,
     /** پاسخ‌های کاربر: شناسه سوال → گزینه انتخاب‌شده */
-    val answers: Map<Int, Int> = emptyMap()
+    val answers: Map<Int, Int> = emptyMap(),
+    /** Snapshot protects reviews from subsequent edits to the question bank. */
+    val questionSnapshot: List<Question>? = null
 ) {
     val percent: Int get() = if (total == 0) 0 else (correct * 100) / total
 }
 
 /** کلید یکتا برای بوکمارک کردن سوال */
-fun bookmarkKey(packId: String, questionId: Int): String = "$packId:$questionId"
+fun bookmarkKey(packId: String, questionId: Int): String = "v2:$packId:$questionId"
+
+/** An unfinished exam is stored locally as a snapshot, including the sampled questions. */
+@Serializable
+data class ActiveExam(
+    val sessionId: String,
+    val pack: QuestionPack,
+    val startedAtEpochMs: Long,
+    val startedAtElapsedMs: Long,
+    val bootCount: Int? = null,
+    val answers: Map<Int, Int> = emptyMap(),
+    val index: Int = 0,
+    val revision: Long = 0,
+    /** Question IDs flagged for a second look within this exam only. */
+    val markedQuestionIds: Set<Int> = emptySet()
+)

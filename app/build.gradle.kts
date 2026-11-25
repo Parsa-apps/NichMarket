@@ -13,8 +13,9 @@ android {
         applicationId = "com.parsaapps.nichmarket"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        versionCode = 2
+        versionName = "1.1.0"
 
         // ---- Myket store configuration ----
         val marketApplicationId = "ir.mservices.market"
@@ -23,8 +24,12 @@ android {
         manifestPlaceholders["marketBindAddress"] = marketBindAddress
         manifestPlaceholders["marketPermission"] = "$marketApplicationId.BILLING"
 
-        // TODO: کلید عمومی (RSA Base64) را از پنل توسعه‌دهندگان مایکت بگیرید و اینجا قرار دهید
-        buildConfigField("String", "IAB_PUBLIC_KEY", "\"REPLACE_WITH_YOUR_MYKET_PUBLIC_KEY\"")
+        // Public verification key from Myket; never store the private signing key in source.
+        val myketPublicKey = providers.environmentVariable("MYKET_PUBLIC_KEY").orNull.orEmpty().trim()
+        require(myketPublicKey.isEmpty() || myketPublicKey.matches(Regex("[A-Za-z0-9+/=]+"))) {
+            "MYKET_PUBLIC_KEY must be a single-line Base64 RSA public key"
+        }
+        buildConfigField("String", "IAB_PUBLIC_KEY", "\"$myketPublicKey\"")
     }
 
     // ---- امضای Release از طریق متغیرهای محیطی (در GitHub Actions یا خط فرمان) ----
@@ -79,6 +84,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.androidx.datastore.preferences)
@@ -87,5 +93,7 @@ dependencies {
     // Myket In-App Billing SDK
     implementation(libs.myket.billing)
 
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
     debugImplementation(libs.androidx.ui.tooling)
 }

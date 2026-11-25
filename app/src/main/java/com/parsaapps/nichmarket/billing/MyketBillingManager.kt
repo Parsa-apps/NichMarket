@@ -11,6 +11,8 @@ import ir.myket.billingclient.util.Purchase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -37,6 +39,10 @@ class MyketBillingManager(
     private var helper: IabHelper? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    private val setupWaiters = mutableListOf<(Boolean) -> Unit>()
+    private val inventoryWaiters = mutableListOf<(Boolean) -> Unit>()
+    private var queryingInventory = false
+
     val billingReady = MutableStateFlow(false)
     private val _purchaseState = MutableStateFlow<PurchaseState>(PurchaseState.Idle)
     val purchaseState: StateFlow<PurchaseState> = _purchaseState
@@ -45,47 +51,99 @@ class MyketBillingManager(
         BuildConfig.IAB_PUBLIC_KEY.isNotBlank() &&
             !BuildConfig.IAB_PUBLIC_KEY.startsWith("REPLACE")
 
-    fun start() {
-        if (helper != null) return
-        if (!publicKeyConfigured) {
-            // کلید عمومی مایکت هنوز در app/build.gradle.kts تنظیم نشده است
+    fun start(onReady: ((Boolean) -> Unit)? = null) {
+        if (billingReady.value && helper != null) {
+            onReady?.invoke(true)
             return
         }
-        val h = IabHelper(appContext, BuildConfig.IAB_PUBLIC_KEY)
+        if (!publicKeyConfigured) {
+            onReady?.invoke(false)
+            return
+        }
+        if (onReady != null) setupWaiters.add(onReady)
+        if (helper != null) return // Setup is still in progress.
+        val h = try {
+            IabHelper(appContext, BuildConfig.IAB_PUBLIC_KEY)
+        } catch (e: Exception) {
+            val waiters = setupWaiters.toList()
+            setupWaiters.clear()
+            waiters.forEach { it(false) }
+            return
+        }
         helper = h
-        try {
-            h.startSetup { result: IabResult ->
-                if (result.isSuccess) {
-                    billingReady.value = true
-                    refreshPurchases()
-                } else {
-                    billingReady.value = false
-                }
+        var timeout: Job? = null
+        fun finishSetup(success: Boolean) {
+            if (helper !== h) return
+            timeout?.cancel()
+            billingReady.value = success
+            if (!success) {
+                runCatching { h.dispose() }
+                helper = null
             }
-        } catch (t: Throwable) {
-            helper = null
+            val waiters = setupWaiters.toList()
+            setupWaiters.clear()
+            waiters.forEach { it(success) }
+            if (success && waiters.isEmpty()) refreshPurchases()
+        }
+        timeout = scope.launch {
+            delay(20_000)
+            finishSetup(false)
+        }
+        try {
+            h.startSetup { result: IabResult -> finishSetup(result.isSuccess) }
+        } catch (e: Exception) {
+            finishSetup(false)
         }
     }
 
-    /** بازیابی/همگام‌سازی خریدهای قبلی کاربر از مایکت */
-    fun refreshPurchases(onDone: (() -> Unit)? = null) {
-        val h = helper
-        if (h == null || !billingReady.value) {
-            onDone?.invoke()
+    /** Queries are shared while setup or an inventory request is already in flight. */
+    fun refreshPurchases(onDone: ((Boolean) -> Unit)? = null) {
+        if (!billingReady.value || helper == null) {
+            start { ready ->
+                if (ready) refreshPurchases(onDone) else onDone?.invoke(false)
+            }
             return
+        }
+        if (onDone != null) inventoryWaiters.add(onDone)
+        if (queryingInventory) return
+        queryingInventory = true
+        val h = helper ?: return
+        var timeout: Job? = null
+        fun finishQuery(success: Boolean, resetConnection: Boolean = false) {
+            if (!queryingInventory || helper !== h) return
+            timeout?.cancel()
+            queryingInventory = false
+            if (resetConnection) {
+                billingReady.value = false
+                helper = null
+                runCatching { h.dispose() }
+            }
+            val waiters = inventoryWaiters.toList()
+            inventoryWaiters.clear()
+            waiters.forEach { it(success) }
+        }
+        timeout = scope.launch {
+            delay(20_000)
+            finishQuery(false, resetConnection = true)
         }
         try {
             h.queryInventoryAsync(true, repository.allSkus) { result, inventory ->
                 if (result.isSuccess && inventory != null) {
-                    val owned = repository.allSkus
-                        .filter { inventory.getPurchase(it) != null }
-                        .toSet()
-                    scope.launch { userStore.setPurchases(owned) }
+                    val owned = repository.allSkus.filter { inventory.getPurchase(it) != null }.toSet()
+                    scope.launch {
+                        try {
+                            userStore.addPurchases(owned)
+                            finishQuery(true)
+                        } catch (e: Exception) {
+                            finishQuery(false)
+                        }
+                    }
+                } else {
+                    finishQuery(false)
                 }
-                onDone?.invoke()
             }
-        } catch (t: Throwable) {
-            onDone?.invoke()
+        } catch (e: Exception) {
+            finishQuery(false)
         }
     }
 
@@ -115,12 +173,18 @@ class MyketBillingManager(
                             if (msg.contains("cancel", ignoreCase = true)) PurchaseState.Cancelled
                             else PurchaseState.Error(msg.ifBlank { "خرید ناموفق بود." })
                     }
-                    purchase.developerPayload != payload -> {
+                    purchase.sku != sku || purchase.developerPayload != payload -> {
                         _purchaseState.value = PurchaseState.Error("خطا در تأیید صحت خرید.")
                     }
                     else -> {
-                        scope.launch { userStore.addPurchase(sku) }
-                        _purchaseState.value = PurchaseState.Success(sku)
+                        scope.launch {
+                            try {
+                                userStore.addPurchase(sku)
+                                _purchaseState.value = PurchaseState.Success(sku)
+                            } catch (e: Exception) {
+                                _purchaseState.value = PurchaseState.Error("ذخیره خرید ناموفق بود؛ لطفاً خریدها را بازیابی کنید.")
+                            }
+                        }
                     }
                 }
             }, payload)
@@ -136,5 +200,11 @@ class MyketBillingManager(
     fun dispose() {
         runCatching { helper?.dispose() }
         helper = null
+        billingReady.value = false
+        queryingInventory = false
+        val waiters = setupWaiters.toList() + inventoryWaiters.toList()
+        setupWaiters.clear()
+        inventoryWaiters.clear()
+        waiters.forEach { it(false) }
     }
 }

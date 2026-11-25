@@ -9,6 +9,8 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,11 +37,11 @@ object Routes {
     const val RESULTS = "results"
     const val ABOUT = "about"
     const val CATEGORY = "category/{catId}"
-    const val EXAM = "exam/{packId}"
+    const val EXAM = "exam/{packId}/{limit}"
     const val RESULT = "result/{resultId}"
 
     fun category(catId: String) = "category/$catId"
-    fun exam(packId: String) = "exam/$packId"
+    fun exam(packId: String, limit: Int = 0) = "exam/$packId/$limit"
     fun result(resultId: String) = "result/$resultId"
 }
 
@@ -66,7 +68,7 @@ fun AppRoot() {
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = androidx.compose.ui.unit.Dp.Hairline) {
                     bottomItems.forEach { item ->
                         NavigationBarItem(
                             selected = currentRoute == item.route,
@@ -79,8 +81,15 @@ fun AppRoot() {
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) }
+                            icon = { Icon(item.icon, contentDescription = null) },
+                            label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
                     }
                 }
@@ -94,7 +103,11 @@ fun AppRoot() {
         ) {
             composable(Routes.HOME) {
                 HomeScreen(
-                    onCategoryClick = { catId -> navController.navigate(Routes.category(catId)) }
+                    onCategoryClick = { catId -> navController.navigate(Routes.category(catId)) },
+                    onOpenResult = { resultId -> navController.navigate(Routes.result(resultId)) },
+                    onResults = { navController.navigate(Routes.RESULTS) },
+                    onBookmarks = { navController.navigate(Routes.BOOKMARKS) },
+                    onResumeExam = { packId -> navController.navigate(Routes.exam(packId, -1)) }
                 )
             }
             composable(Routes.CATEGORY) { entry ->
@@ -102,15 +115,21 @@ fun AppRoot() {
                 CategoryScreen(
                     catId = catId,
                     onBack = { navController.popBackStack() },
-                    onStartExam = { packId -> navController.navigate(Routes.exam(packId)) }
+                    onStartExam = { packId, limit -> navController.navigate(Routes.exam(packId, limit)) }
                 )
             }
             composable(Routes.EXAM) { entry ->
                 val packId = entry.arguments?.getString("packId").orEmpty()
+                val limit = entry.arguments?.getString("limit")?.toIntOrNull() ?: 0
                 ExamScreen(
                     packId = packId,
+                    limit = limit,
                     onExit = { navController.popBackStack() },
-                    onFinished = { resultId -> navController.navigate(Routes.result(resultId)) }
+                    onFinished = { resultId ->
+                        navController.navigate(Routes.result(resultId)) {
+                            popUpTo(Routes.EXAM) { inclusive = true }
+                        }
+                    }
                 )
             }
             composable(Routes.RESULT) { entry ->

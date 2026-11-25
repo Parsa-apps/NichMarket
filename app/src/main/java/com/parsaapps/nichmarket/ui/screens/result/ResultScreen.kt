@@ -1,8 +1,14 @@
 package com.parsaapps.nichmarket.ui.screens.result
 
+import android.content.Intent
+import android.widget.Toast
+
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,12 +30,19 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -40,22 +53,25 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parsaapps.nichmarket.Graph
+import com.parsaapps.nichmarket.data.analysis.AnswerStatus
+import com.parsaapps.nichmarket.data.analysis.matchesReviewQuestion
+import com.parsaapps.nichmarket.data.analysis.subjectPerformance
 import com.parsaapps.nichmarket.data.model.ExamResult
 import com.parsaapps.nichmarket.data.model.Question
 import com.parsaapps.nichmarket.data.model.bookmarkKey
 import com.parsaapps.nichmarket.ui.components.StatCard
-import com.parsaapps.nichmarket.ui.theme.CorrectGreen
-import com.parsaapps.nichmarket.ui.theme.WrongRed
 import com.parsaapps.nichmarket.util.formatClock
 import com.parsaapps.nichmarket.util.formatShamsi
 import com.parsaapps.nichmarket.util.toPersian
@@ -69,8 +85,8 @@ class ResultViewModel : ViewModel() {
     val bookmarks = Graph.userStore.bookmarks
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    fun toggleBookmark(packId: String, questionId: Int) {
-        viewModelScope.launch { Graph.userStore.toggleBookmark(packId, questionId) }
+    fun toggleBookmark(packId: String, questionId: Int, legacy: Boolean) {
+        viewModelScope.launch { Graph.userStore.toggleBookmark(packId, questionId, legacy) }
     }
 }
 
@@ -78,11 +94,12 @@ class ResultViewModel : ViewModel() {
 @Composable
 fun ResultScreen(resultId: String, onBack: () -> Unit) {
     val vm: ResultViewModel = viewModel()
+    val context = LocalContext.current
     val results by vm.results.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
     val result = remember(resultId, results) { results.firstOrNull { it.id == resultId } }
 
-    LaunchedEffect(resultId) {
+    LaunchedEffect(resultId, results) {
         if (results.isNotEmpty() && results.none { it.id == resultId }) onBack()
     }
 
@@ -97,8 +114,28 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
         return
     }
 
-    val pack = remember(result.packId) { Graph.repository.findPack(result.packId) }
+    val legacy = result.questionSnapshot == null
+    val pack = remember(result.packId, legacy) {
+        if (legacy) Graph.repository.findLegacyPack(result.packId)
+        else Graph.repository.findPack(result.packId)
+    }
+    val reviewQuestions = result.questionSnapshot ?: pack?.questions.orEmpty()
     val answers = remember(result.id) { result.answers }
+    val subjectStats = remember(reviewQuestions, answers) { subjectPerformance(reviewQuestions, answers) }
+    var reviewFilter by rememberSaveable(result.id) { mutableStateOf("همه") }
+    var selectedSubject by rememberSaveable(result.id) { mutableStateOf("") }
+    var query by rememberSaveable(result.id) { mutableStateOf("") }
+    val filteredQuestions = remember(reviewQuestions, answers, reviewFilter, selectedSubject, query) {
+        val status = when (reviewFilter) {
+            "نادرست" -> AnswerStatus.WRONG
+            "بی‌پاسخ" -> AnswerStatus.BLANK
+            "درست" -> AnswerStatus.CORRECT
+            else -> null
+        }
+        reviewQuestions.filter { question ->
+            matchesReviewQuestion(question, answers, status, selectedSubject, query)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -109,10 +146,24 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
                     }
                 },
+                actions = {
+                    IconButton(onClick = {
+                        val summary = "نتیجه تمرین در نیچ مارکت\n${result.packTitle}\n" +
+                            "درست: ${result.correct.toPersian()} از ${result.total.toPersian()} • ${result.percent.toPersian()}٪\n" +
+                            "بدون نمره منفی"
+                        val intent = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, summary)
+                        try {
+                            context.startActivity(Intent.createChooser(intent, "اشتراک‌گذاری خلاصه کارنامه"))
+                        } catch (e: android.content.ActivityNotFoundException) {
+                            Toast.makeText(context, "برنامه‌ای برای اشتراک‌گذاری پیدا نشد.", Toast.LENGTH_SHORT).show()
+                        }
+                    }) { Icon(Icons.Filled.Share, contentDescription = "اشتراک‌گذاری خلاصه کارنامه") }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         }
@@ -125,6 +176,43 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item { ScoreCard(result) }
+            if (subjectStats.isNotEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("عملکرد به تفکیک درس", style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold)
+                            Text("درس‌های با نسبت پاسخ درست کمتر در ابتدا هستند. برای فیلتر مرور روی یک درس بزنید؛ سؤال بی‌پاسخ هم در تعداد کل است.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            subjectStats.forEach { (subject, correct, total) ->
+                                Row(Modifier.fillMaxWidth().clickable {
+                                    selectedSubject = if (selectedSubject == subject) "" else subject
+                                }.padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(subject + if (selectedSubject == subject) " ✓" else "", style = MaterialTheme.typography.labelLarge)
+                                    Text("${correct.toPersian()} از ${total.toPersian()}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                LinearProgressIndicator(progress = { correct.toFloat() / total },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    trackColor = MaterialTheme.colorScheme.surfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+            if (legacy) {
+                item {
+                    Text(
+                        "این کارنامه از بانک نسخه قبلی استفاده می‌کند؛ محتوای تاریخی ممکن است در نسخه جدید اصلاح شده باشد.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             item {
                 Text(
                     text = "مرور سوالات",
@@ -132,15 +220,57 @@ fun ResultScreen(resultId: String, onBack: () -> Unit) {
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
-            if (pack != null) {
-                items(pack.questions, key = { it.id }) { question ->
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("همه", "نادرست", "بی‌پاسخ", "درست").forEach { filter ->
+                        FilterChip(
+                            selected = reviewFilter == filter,
+                            onClick = { reviewFilter = filter },
+                            label = { Text(filter) }
+                        )
+                    }
+                }
+            }
+            item {
+                OutlinedTextField(value = query, onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("جست‌وجو در این کارنامه") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) {
+                        Icon(Icons.Filled.Close, contentDescription = "پاک کردن جست‌وجو")
+                    } }, singleLine = true, shape = RoundedCornerShape(16.dp))
+            }
+            item {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = selectedSubject.isEmpty(), onClick = { selectedSubject = "" },
+                        label = { Text("همه درس‌ها") })
+                    subjectStats.forEach { stat ->
+                        FilterChip(selected = selectedSubject == stat.subject, onClick = { selectedSubject = stat.subject },
+                            label = { Text(stat.subject) })
+                    }
+                }
+                Text("${filteredQuestions.size.toPersian()} از ${reviewQuestions.size.toPersian()} سؤال",
+                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (filteredQuestions.isEmpty()) {
+                item {
+                    Text("سؤالی با این فیلترها پیدا نشد.", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 12.dp))
+                }
+            } else {
+                items(filteredQuestions, key = { it.id }) { question ->
                     val userAnswer = answers[question.id]
                     ReviewCard(
-                        number = pack.questions.indexOf(question) + 1,
+                        number = reviewQuestions.indexOf(question) + 1,
                         question = question,
                         userAnswer = userAnswer,
-                        bookmarked = bookmarkKey(pack.id, question.id) in bookmarks,
-                        onBookmark = { vm.toggleBookmark(pack.id, question.id) }
+                        bookmarked = (if (legacy) "${result.packId}:${question.id}" else bookmarkKey(result.packId, question.id)) in bookmarks,
+                        canBookmark = legacy || pack?.questions?.any { it == question } == true,
+                        onBookmark = { vm.toggleBookmark(result.packId, question.id, legacy) }
                     )
                 }
             }
@@ -155,7 +285,7 @@ private fun ScoreCard(result: ExamResult) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary
+            containerColor = Color(0xFF164F50)
         )
     ) {
         Column(
@@ -165,12 +295,17 @@ private fun ScoreCard(result: ExamResult) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Text("خلاصه عملکرد", style = MaterialTheme.typography.labelLarge,
+                color = Color(0xFFEFD09A), fontWeight = FontWeight.SemiBold)
             Box(
-                modifier = Modifier
-                    .size(110.dp)
-                    .background(Color.White.copy(alpha = 0.15f), CircleShape),
+                modifier = Modifier.size(126.dp),
                 contentAlignment = Alignment.Center
             ) {
+                CircularProgressIndicator(
+                    progress = { (result.percent / 100f).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxSize(), color = Color(0xFFE9CC91),
+                    trackColor = Color.White.copy(alpha = .18f), strokeWidth = 8.dp
+                )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = "${result.percent.toPersian()}٪",
@@ -199,8 +334,8 @@ private fun ScoreCard(result: ExamResult) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StatCard("درست", result.correct, CorrectGreen, Modifier.weight(1f))
-                StatCard("غلط", result.wrong, WrongRed, Modifier.weight(1f))
+                StatCard("درست", result.correct, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                StatCard("غلط", result.wrong, MaterialTheme.colorScheme.error, Modifier.weight(1f))
                 StatCard("بی‌جواب", result.blank, MaterialTheme.colorScheme.onSurfaceVariant, Modifier.weight(1f))
             }
         }
@@ -213,6 +348,7 @@ private fun ReviewCard(
     question: Question,
     userAnswer: Int?,
     bookmarked: Boolean,
+    canBookmark: Boolean,
     onBookmark: () -> Unit
 ) {
     var expanded by remember(question.id) { mutableStateOf(false) }
@@ -223,9 +359,23 @@ private fun ReviewCard(
             .clickable { expanded = !expanded },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .7f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            if (question.subject.isNotBlank()) {
+                Text(
+                    text = if (question.difficulty.isNotBlank()) {
+                        "${question.subject} • ${question.difficulty}"
+                    } else {
+                        question.subject
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -236,7 +386,7 @@ private fun ReviewCard(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = onBookmark) {
+                IconButton(onClick = onBookmark, enabled = canBookmark) {
                     Icon(
                         imageVector = if (bookmarked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         contentDescription = "ذخیره",
@@ -250,6 +400,20 @@ private fun ReviewCard(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            Text(
+                text = when {
+                    userAnswer == null -> "بی‌پاسخ"
+                    userAnswer == question.answerIndex -> "پاسخ درست"
+                    else -> "پاسخ نادرست"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = when {
+                    userAnswer == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                    userAnswer == question.answerIndex -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.error
+                },
+                modifier = Modifier.padding(top = 6.dp)
+            )
             if (expanded) {
                 Spacer(Modifier.height(8.dp))
                 question.options.forEachIndexed { i, option ->
@@ -288,8 +452,8 @@ private fun ReviewOptionRow(
             .padding(vertical = 4.dp)
             .background(
                 when {
-                    isCorrect -> CorrectGreen.copy(alpha = 0.12f)
-                    isUserPick -> WrongRed.copy(alpha = 0.12f)
+                    isCorrect -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    isUserPick -> MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
                     else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                 },
                 RoundedCornerShape(10.dp)
@@ -302,7 +466,7 @@ private fun ReviewOptionRow(
             Icon(
                 Icons.Filled.CheckCircle,
                 contentDescription = null,
-                tint = CorrectGreen,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp)
             )
         } else {
@@ -312,8 +476,8 @@ private fun ReviewOptionRow(
             text = option,
             style = MaterialTheme.typography.bodyMedium,
             color = when {
-                isCorrect -> CorrectGreen
-                isUserPick && !isCorrect -> WrongRed
+                isCorrect -> MaterialTheme.colorScheme.primary
+                isUserPick && !isCorrect -> MaterialTheme.colorScheme.error
                 else -> MaterialTheme.colorScheme.onSurface
             },
             fontWeight = if (isCorrect || isUserPick) FontWeight.SemiBold else FontWeight.Normal

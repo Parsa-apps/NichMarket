@@ -1,155 +1,247 @@
 package com.parsaapps.nichmarket.ui.screens.about
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ClipboardManager
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.parsaapps.nichmarket.ui.components.GradientHeader
 import com.parsaapps.nichmarket.BuildConfig
+import com.parsaapps.nichmarket.R
+import com.parsaapps.nichmarket.ui.components.GradientHeader
+import com.parsaapps.nichmarket.util.toPersianDigits
+import kotlinx.coroutines.launch
 
-private const val MYKET_FANDOGHI =
-    "https://myket.ir/app/com.parsaapps.amoozesh_fandoghi"
-private const val BAZAAR_FANDOGHI =
-    "https://cafebazaar.ir/app/com.parsaapps.amoozesh_fandoghi"
+private const val WEBSITE = "https://parsa-apps.github.io/"
+private const val EMAIL = "farshadparsa2019@gmail.com"
+private const val TELEGRAM = "https://t.me/Parsaappsadmin"
+private const val INSTAGRAM = "https://instagram.com/parsa_apps"
+private const val GITHUB = "https://github.com/Parsa-apps"
+private const val JAZIRE_MYKET = "https://myket.ir/app/com.parsaapps.amoozesh_fandoghi"
+private const val JAZIRE_BAZAAR = "https://github.com/Parsa-apps/Jazire-Fandoqi/releases/tag/v7.5.6-bazaar"
+private const val KARTONIYA = "https://github.com/Parsa-apps/Kartoniya"
+private const val NAQASHI = "https://github.com/Parsa-apps/Naqashi-Fandoqi"
 
 @Composable
 fun AboutScreen() {
     val context = LocalContext.current
+    val clipboard: ClipboardManager = LocalClipboardManager.current
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var showFontLicense by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        GradientHeader(
-            title = "درباره نیچ مارکت",
-            subtitle = "بانک سوالات و آزمون‌های استخدامی دستگاه‌های اجرایی"
-        )
-        Spacer(Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "نیچ مارکت",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "اپلیکیشن بانک سوالات و آزمون‌های استخدامی دستگاه‌های اجرایی؛ شامل بسته‌های تست " +
-                        "آزمون‌های عمومی و اختصاصی استخدامی با پاسخ تشریحی، آزمون شبیه‌ساز زمان‌دار، " +
-                        "کارنامه و تحلیل عملکرد. بسته‌های جدید به‌صورت دوره‌ای اضافه می‌شوند.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "نسخه ${BuildConfig.VERSION_NAME}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+    fun open(intent: Intent) {
+        try {
+            context.startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            scope.launch { snackbar.showSnackbar("برنامه‌ای برای باز کردن این پیوند پیدا نشد.") }
+        } catch (e: SecurityException) {
+            scope.launch { snackbar.showSnackbar("امکان باز کردن این پیوند وجود ندارد.") }
         }
+    }
+    fun openWeb(url: String) = open(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    fun openEmail() = open(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$EMAIL")).apply {
+        putExtra(Intent.EXTRA_SUBJECT, "پشتیبانی نیچ مارکت")
+    })
 
-        Spacer(Modifier.height(12.dp))
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "سازنده: پارسا اپس 🥜",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "سازنده اپلیکیشن «جزیره فندقی؛ آموزش و بازی کودک» — اگر فرزند کوچکی دارید، " +
-                        "حتماً سر بزنید!",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(
-                    onClick = { openLink(context, MYKET_FANDOGHI) },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("جزیره فندقی در مایکت")
-                }
-                OutlinedButton(
-                    onClick = { openLink(context, BAZAAR_FANDOGHI) },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("جزیره فندقی در بازار")
+            item {
+                GradientHeader("درباره ما", "نیچ مارکت، محصولی از پارسا اپس")
+            }
+            item {
+                AboutCard {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.parsa_apps_logo),
+                            contentDescription = "لوگوی رسمی پارسا اپس",
+                            modifier = Modifier.size(140.dp)
+                        )
+                        Text("پارسا اپس", style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold)
+                        Text("ایده‌های بزرگ برای دنیای کوچک", style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
+                        Text(
+                            "پارسا اپس یک استودیوی مستقل ایرانی در زمینه طراحی و توسعه نرم‌افزار است. " +
+                                "ما با عشق به فناوری، یادگیری و خلاقیت، تجربه‌های دیجیتال فارسی می‌سازیم؛ " +
+                                "از اپلیکیشن‌های آموزشی و سرگرمی تا بازی‌ها و محصولات خلاقانه.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
+                        )
+                        Text("مدیریت و توسعه اصلی: فرشاد پارسا", style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold)
+                        Button(onClick = { openWeb(WEBSITE) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Filled.Language, contentDescription = null)
+                            Spacer(Modifier.size(8.dp))
+                            Text("وب‌سایت رسمی پارسا اپس")
+                        }
+                        Text("parsa-apps.github.io", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "پشتیبانی و پیشنهاد",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "برای گزارش خطا، پیشنهاد بسته جدید یا مشکل در خرید، از طریق ایمیل توسعه‌دهنده " +
-                        "در صفحه اپلیکیشن در مایکت با ما در ارتباط باشید.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            item {
+                AboutCard {
+                    SectionTitle("نیچ مارکت؛ همراه مسیر یادگیری")
+                    BodyText("نیچ مارکت مجموعه‌ای از سؤال‌های تمرینی و تألیفی برای آمادگی آزمون‌های استخدامی است؛ " +
+                        "با آزمون زمان‌دار، مرور تشریحی، علاقه‌مندی‌ها و کارنامه. سؤال‌ها دفترچه رسمی آزمون‌های گذشته نیستند.")
+                    BodyText("آزمون‌ها بدون اینترنت اجرا می‌شوند؛ خرید و بازیابی بسته‌های پولی از طریق مایکت انجام می‌شود.")
+                    Text("نسخه ${BuildConfig.VERSION_NAME.toPersianDigits()}",
+                        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    BodyText("فونت فارسی برنامه: وزیرمتن، تحت مجوز SIL Open Font License 1.1.")
+                    TextButton(onClick = { showFontLicense = true }) { Text("مشاهده مجوز فونت") }
+                }
+            }
+            item {
+                AboutCard {
+                    SectionTitle("محصولات و پروژه‌های پارسا اپس")
+                    BodyText("از یادگیری و بازی کودکان تا ابزارهای خلاق؛ هر محصول برای یک تجربه کاربردی فارسی ساخته می‌شود.")
+                    ProductLink("جزیره فندقی", "آموزش و بازی کودک • صفحه مایکت") { openWeb(JAZIRE_MYKET) }
+                    ProductLink("جزیره فندقی", "نسخه ویژه کافه‌بازار • انتشار گیت‌هاب") { openWeb(JAZIRE_BAZAAR) }
+                    ProductLink("کارتونیا", "پروژه در حال توسعه • گیت‌هاب") { openWeb(KARTONIYA) }
+                    ProductLink("استودیو نقاشی فندوقی", "نقاشی و خلاقیت کودک • گیت‌هاب") { openWeb(NAQASHI) }
+                }
+            }
+            item {
+                AboutCard {
+                    SectionTitle("ارتباط با ما")
+                    BodyText("برای گزارش مشکل، پیشنهاد یا پیگیری خرید با پشتیبانی پارسا اپس در ارتباط باشید.")
+                    Text(EMAIL, style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { openEmail() }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(6.dp)); Text("ارسال ایمیل")
+                        }
+                        OutlinedButton(onClick = {
+                            clipboard.setText(AnnotatedString(EMAIL))
+                            scope.launch { snackbar.showSnackbar("نشانی ایمیل کپی شد.") }
+                        }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(6.dp)); Text("کپی ایمیل")
+                        }
+                    }
+                    ProductLink("تلگرام", "@Parsaappsadmin") { openWeb(TELEGRAM) }
+                    ProductLink("اینستاگرام", "@parsa_apps") { openWeb(INSTAGRAM) }
+                    ProductLink("گیت‌هاب", "github.com/Parsa-apps") { openWeb(GITHUB) }
+                }
+            }
+            item {
+                AboutCard {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Filled.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        SectionTitle("داده‌های شما")
+                    }
+                    BodyText("کارنامه‌ها و علاقه‌مندی‌ها روی همین دستگاه ذخیره می‌شوند. " +
+                        "با حذف برنامه این داده‌های محلی پاک می‌شوند؛ برای بازیابی خرید باید با حساب خریدار به مایکت وارد شوید. " +
+                        "بازکردن پیوندهای بیرونی و استفاده از مایکت تابع شرایط و سیاست‌های همان سرویس‌هاست.")
+                }
+            }
+            item {
+                Text("ساخته‌شده با دقت در پارسا اپس", modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    textAlign = TextAlign.Center, style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Spacer(Modifier.height(80.dp))
+    }
+    if (showFontLicense) {
+        val license = remember {
+            runCatching { context.assets.open("licenses/Vazirmatn-OFL.txt").bufferedReader().use { it.readText() } }
+                .getOrDefault("متن مجوز در دسترس نیست.")
+        }
+        AlertDialog(onDismissRequest = { showFontLicense = false },
+            title = { Text("مجوز فونت وزیرمتن") },
+            text = { Text(license, modifier = Modifier.verticalScroll(rememberScrollState()),
+                style = MaterialTheme.typography.bodySmall) },
+            confirmButton = { TextButton(onClick = { showFontLicense = false }) { Text("بستن") } })
     }
 }
 
-private fun openLink(context: android.content.Context, url: String) {
-    runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+@Composable
+private fun AboutCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .7f))
+    ) {
+        Column(Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    }
+}
+
+@Composable
+private fun SectionTitle(title: String) {
+    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+}
+
+@Composable
+private fun BodyText(text: String) {
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun ProductLink(title: String, subtitle: String, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            Text(subtitle, style = MaterialTheme.typography.labelMedium)
+        }
+        Icon(Icons.Filled.OpenInNew, contentDescription = "باز کردن پیوند", modifier = Modifier.size(18.dp))
     }
 }

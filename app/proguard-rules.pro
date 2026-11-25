@@ -9,7 +9,7 @@
 
 # kotlinx.serialization
 -keepattributes *Annotation*, InnerClasses
-dontnote kotlinx.serialization.**
+-dontnote kotlinx.serialization.**
 -keepclassmembers class com.parsaapps.nichmarket.**$$serializer { *; }
 -keepclassmembers class com.parsaapps.nichmarket.** {
     *** Companion;
