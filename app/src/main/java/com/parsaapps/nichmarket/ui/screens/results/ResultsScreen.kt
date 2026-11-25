@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -60,6 +61,7 @@ import com.parsaapps.nichmarket.util.formatShamsi
 import com.parsaapps.nichmarket.util.toPersian
 import com.parsaapps.nichmarket.util.toPersianDigits
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 
@@ -87,9 +89,11 @@ fun ResultsScreen(onOpenResult: (String) -> Unit) {
     var period by rememberSaveable { mutableStateOf(0) }
     var order by rememberSaveable { mutableStateOf("جدیدترین") }
     val snackbar = remember { SnackbarHostState() }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(60_000); now = System.currentTimeMillis() } }
     LaunchedEffect(vm) { vm.errors.collect { snackbar.showSnackbar(it) } }
-    val visibleResults = remember(results, query, period, order) {
-        val inPeriod = if (period == 0) results else recentResults(results, period, System.currentTimeMillis())
+    val visibleResults = remember(results, query, period, order, now) {
+        val inPeriod = if (period == 0) results else recentResults(results, period, now)
         val matched = inPeriod.filter { matchesPersianSearch(query, it.packTitle) }
         when (order) {
             "قدیمی‌ترین" -> matched.sortedBy { it.date }
@@ -129,7 +133,7 @@ fun ResultsScreen(onOpenResult: (String) -> Unit) {
                 }
             }
         } else {
-            item { StudySummary(results) }
+            item { StudySummary(results, now) }
             item {
                 Row(
                     modifier = Modifier
@@ -210,9 +214,9 @@ fun ResultsScreen(onOpenResult: (String) -> Unit) {
 }
 
 @Composable
-private fun StudySummary(results: List<ExamResult>) {
+private fun StudySummary(results: List<ExamResult>, now: Long) {
     val stats = remember(results) { studyStatistics(results) }
-    val week = remember(results) { recentResults(results, 7, System.currentTimeMillis()) }
+    val week = remember(results, now) { recentResults(results, 7, now) }
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(22.dp),

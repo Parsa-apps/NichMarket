@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -190,11 +191,13 @@ private fun FlashcardDialog(initial: List<BookmarkItem>, onClose: () -> Unit) {
     var position by remember(initial) { mutableStateOf(0) }
     var revealed by remember(initial) { mutableStateOf(false) }
     val item = order.getOrNull(position) ?: return
+    val scroll = rememberScrollState()
+    LaunchedEffect(position, order) { scroll.scrollTo(0) }
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text("مرور فلش‌کارتی • ${(position + 1).toPersian()} از ${order.size.toPersian()}") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(item.packTitle + if (item.legacy) " • نسخه قبلی" else "", style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary)
                 if (item.question.subject.isNotBlank()) Text(item.question.subject, style = MaterialTheme.typography.labelMedium)

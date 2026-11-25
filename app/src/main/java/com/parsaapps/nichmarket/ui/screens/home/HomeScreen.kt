@@ -112,7 +112,7 @@ fun HomeScreen(
         }
     }
     val latest = results.firstOrNull()
-    val weakest = remember(latest) { latest?.questionSnapshot?.let { subjectPerformance(it, latest.answers).firstOrNull() } }
+    val weakest = remember(latest) { latest?.questionSnapshot?.let { subjectPerformance(it, latest.answers).firstOrNull { stat -> stat.correct < stat.total } } }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
