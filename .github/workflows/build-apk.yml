@@ -29,7 +29,7 @@ jobs:
           ./gradlew assembleDebug --stacktrace 2>&1 | tee "$RUNNER_TEMP/nich-build.log"
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            grep -E -i '(^e: |error:|failed|could not|what went wrong|caused by:|^> |exception)' "$RUNNER_TEMP/nich-build.log" | head -50 | while IFS= read -r line; do
+            grep -E -i '(^e: |error:|FAILURE:|could not|what went wrong|caused by:)' "$RUNNER_TEMP/nich-build.log" | tail -8 | while IFS= read -r line; do
               printf '::error::%s\n' "$line"
             done
           fi
@@ -43,7 +43,7 @@ jobs:
           ./gradlew assembleDebugAndroidTest --stacktrace 2>&1 | tee "$RUNNER_TEMP/nich-test-build.log"
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            grep -E -i '(^e: |error:|failed|could not|what went wrong|caused by:|^> |exception)' "$RUNNER_TEMP/nich-test-build.log" | head -50 | while IFS= read -r line; do
+            grep -E -i '(^e: |error:|FAILURE:|could not|what went wrong|caused by:)' "$RUNNER_TEMP/nich-test-build.log" | tail -8 | while IFS= read -r line; do
               printf '::error::%s\n' "$line"
             done
           fi
