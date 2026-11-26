@@ -1,42 +1,166 @@
-name: Build APK
+name: Validate and build Android
 
 on:
   push:
-    branches: [ main ]
+  pull_request:
   workflow_dispatch:
 
 jobs:
   debug-apk:
-    name: Debug APK (installable for test)
+    name: Validate bank and build debug APK
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - name: Validate question bank
+        run: |
+          python3 tools/validate_questions.py
+          python3 -m unittest discover -s tests -v
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      # پروژه از Gradle نصب‌شده استفاده می‌کند (نیازی به gradle-wrapper.jar نیست)
-      - name: Set up Gradle 8.10.2
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
-
+      - uses: gradle/actions/setup-gradle@v4
       - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        env:
+          MYKET_PUBLIC_KEY: ${{ secrets.MYKET_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set +e
+          ./gradlew assembleMyketDebug assembleBazaarDebug --stacktrace 2>&1 | tee "$RUNNER_TEMP/nich-build.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E -i '(^e: |error:|FAILURE:|could not|what went wrong|caused by:)' "$RUNNER_TEMP/nich-build.log" | tail -8 | while IFS= read -r line; do
+              printf '::error::%s\n' "$line"
+            done
+          fi
+          exit "$status"
+      - name: Build instrumentation test APK
+        env:
+          MYKET_PUBLIC_KEY: ${{ secrets.MYKET_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set +e
+          ./gradlew assembleMyketDebugAndroidTest --stacktrace 2>&1 | tee "$RUNNER_TEMP/nich-test-build.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E -i '(^e: |error:|FAILURE:|could not|what went wrong|caused by:)' "$RUNNER_TEMP/nich-test-build.log" | tail -8 | while IFS= read -r line; do
+              printf '::error::%s\n' "$line"
+            done
+          fi
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NichMarket-Bazaar-debug-UNCONFIGURED
+          path: app/build/outputs/apk/bazaar/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
         with:
           name: NichMarket-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/myket/debug/*.apk
+          if-no-files-found: error
           retention-days: 30
 
+  release-preflight:
+    name: Verify unsigned release build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build unsigned APK and AAB (not for distribution)
+        shell: bash
+        run: |
+          set +e
+          ./gradlew assembleMyketRelease bundleMyketRelease --stacktrace 2>&1 | tee "$RUNNER_TEMP/nich-release.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E -i '(^e: |error:|FAILURE:|could not|what went wrong|caused by:)' "$RUNNER_TEMP/nich-release.log" | tail -8 | while IFS= read -r line; do
+              printf '::error::%s\n' "$line"
+            done
+          fi
+          exit "$status"
+
+  emulator-validation:
+    name: Test Android on emulator
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build release with an ephemeral test key (not for distribution)
+        env:
+          SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/test-only.keystore
+          SIGNING_STORE_PASSWORD: test-only-password
+          SIGNING_KEY_ALIAS: test-only
+          SIGNING_KEY_PASSWORD: test-only-password
+        run: |
+          keytool -genkeypair -keystore "$SIGNING_KEYSTORE_PATH" -storepass "$SIGNING_STORE_PASSWORD" -keypass "$SIGNING_KEY_PASSWORD" -alias "$SIGNING_KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 1 -dname 'CN=Test Only' -noprompt
+          ./gradlew assembleMyketRelease --stacktrace
+      - name: Run instrumentation tests
+        uses: ReactiveCircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim
+          script: |
+            adb install app/build/outputs/apk/myket/release/app-myket-release.apk
+            adb shell am start -W -n com.parsaapps.nichmarket/.MainActivity
+            adb shell pidof com.parsaapps.nichmarket
+            adb uninstall com.parsaapps.nichmarket
+            ./gradlew connectedMyketDebugAndroidTest --stacktrace
+      - name: Check critical test coverage
+        run: |
+          python3 - <<'PYCODE'
+          import glob, xml.etree.ElementTree as ET
+          files = glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True)
+          cases = [case for file in files for case in ET.parse(file).getroot().iter('testcase')]
+          required = {
+              ('com.parsaapps.nichmarket.FreeExamFlowUiTest', 'freeExamCanBeSavedResumedAndReviewed'),
+              ('com.parsaapps.nichmarket.ReleaseConfigurationTest', 'embeddedMyketKeyIsTheRequestedKey'),
+              ('com.parsaapps.nichmarket.ExamRecoveryTest', 'savedDraftCanBeReadAfterStoreIsRecreated'),
+          }
+          executed = {(case.get('classname'), case.get('name')) for case in cases if case.find('skipped') is None}
+          missing = required - executed
+          if missing:
+              raise SystemExit('Critical instrumentation tests missing or skipped: ' + str(missing))
+          print(f'Critical flow and persistence tests executed; {len(cases)} test cases reported.')
+          PYCODE
+      - name: Summarize test failures
+        if: failure()
+        run: |
+          python3 - <<'PYCODE'
+          import glob, xml.etree.ElementTree as ET
+          for path in glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True):
+              root = ET.parse(path).getroot()
+              for case in root.iter('testcase'):
+                  for failure in case.findall('failure') + case.findall('error'):
+                      text = (failure.text or failure.get('message', 'failure'))[:3000]
+                      text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                      print(f"::error::{case.get('classname')}.{case.get('name')}: {text}")
+          PYCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-test-reports
+          path: app/build/reports/androidTests/connected/
+          if-no-files-found: ignore
+
   release-apk:
-    name: Signed release APK (needs signing secrets)
+    name: Signed release APK (configured repositories only)
     runs-on: ubuntu-latest
     env:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
@@ -44,36 +168,52 @@ jobs:
       SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      MYKET_PUBLIC_KEY: ${{ secrets.MYKET_PUBLIC_KEY }}
     steps:
-      - name: Checkout
+      - uses: actions/checkout@v4
         if: env.HAS_KEYSTORE == 'true'
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
+      - name: Verify required release configuration
         if: env.HAS_KEYSTORE == 'true'
-        uses: actions/setup-java@v4
+        run: |
+          test -n "$SIGNING_STORE_PASSWORD" && test -n "$SIGNING_KEY_ALIAS" && test -n "$SIGNING_KEY_PASSWORD" || { echo 'Missing signing secret' >&2; exit 1; }
+          python3 tools/validate_questions.py
+      - uses: actions/setup-java@v4
+        if: env.HAS_KEYSTORE == 'true'
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Set up Gradle 8.10.2
+      - uses: gradle/actions/setup-gradle@v4
         if: env.HAS_KEYSTORE == 'true'
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
-
       - name: Decode keystore
         if: env.HAS_KEYSTORE == 'true'
-        run: echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > release.keystore
-
-      - name: Build signed release APK
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > "$SIGNING_KEYSTORE_PATH"
+      - name: Build signed release APK and app bundle
         if: env.HAS_KEYSTORE == 'true'
-        run: gradle assembleRelease --stacktrace
-
-      - name: Upload release APK
+        run: ./gradlew assembleMyketRelease bundleMyketRelease --stacktrace
+      - name: Verify release signature and identifiers
         if: env.HAS_KEYSTORE == 'true'
-        uses: actions/upload-artifact@v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          apk=app/build/outputs/apk/myket/release/app-myket-release.apk
+          "$tools/apksigner" verify --verbose --print-certs "$apk"
+          "$tools/aapt" dump badging "$apk" | grep -F "package: name='com.parsaapps.nichmarket' versionCode='3' versionName='1.1.1'"
+          jarsigner -verify app/build/outputs/bundle/myketRelease/*.aab
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEYSTORE == 'true'
         with:
           name: NichMarket-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/myket/release/*.apk
+          if-no-files-found: error
+          retention-days: 60
+
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          name: NichMarket-release-aab
+          path: app/build/outputs/bundle/myketRelease/*.aab
+          if-no-files-found: error
           retention-days: 60

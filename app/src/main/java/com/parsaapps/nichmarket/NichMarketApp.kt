@@ -1,7 +1,8 @@
 package com.parsaapps.nichmarket
 
 import android.app.Application
-import com.parsaapps.nichmarket.billing.MyketBillingManager
+import com.parsaapps.nichmarket.billing.StoreBillingManager
+import com.parsaapps.nichmarket.billing.createStoreBillingManager
 import com.parsaapps.nichmarket.data.QuestionRepository
 import com.parsaapps.nichmarket.data.UserStore
 
@@ -11,14 +12,14 @@ object Graph {
         private set
     lateinit var userStore: UserStore
         private set
-    lateinit var billing: MyketBillingManager
+    lateinit var billing: StoreBillingManager
         private set
 
-    fun init(app: Application) {
+    fun init(app: Application, store: UserStore = UserStore(app), startBilling: Boolean = true) {
         repository = QuestionRepository(app)
-        userStore = UserStore(app)
-        billing = MyketBillingManager(app, repository, userStore)
-        billing.start()
+        userStore = store
+        billing = createStoreBillingManager(app, repository, userStore)
+        if (startBilling) billing.start()
     }
 }
 

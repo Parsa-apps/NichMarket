@@ -1,6 +1,11 @@
 package com.parsaapps.nichmarket.ui.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
@@ -9,6 +14,8 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,18 +35,20 @@ import com.parsaapps.nichmarket.ui.screens.exam.ExamScreen
 import com.parsaapps.nichmarket.ui.screens.home.HomeScreen
 import com.parsaapps.nichmarket.ui.screens.result.ResultScreen
 import com.parsaapps.nichmarket.ui.screens.results.ResultsScreen
+import com.parsaapps.nichmarket.ui.screens.settings.SettingsScreen
 
 object Routes {
     const val HOME = "home"
     const val BOOKMARKS = "bookmarks"
     const val RESULTS = "results"
     const val ABOUT = "about"
+    const val SETTINGS = "settings"
     const val CATEGORY = "category/{catId}"
-    const val EXAM = "exam/{packId}"
+    const val EXAM = "exam/{packId}/{limit}"
     const val RESULT = "result/{resultId}"
 
     fun category(catId: String) = "category/$catId"
-    fun exam(packId: String) = "exam/$packId"
+    fun exam(packId: String, limit: Int = 0) = "exam/$packId/$limit"
     fun result(resultId: String) = "result/$resultId"
 }
 
@@ -50,7 +59,7 @@ private data class BottomItem(
 )
 
 @Composable
-fun AppRoot() {
+fun AppRoot(reduceMotion: Boolean = false) {
     val navController: NavHostController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -66,7 +75,7 @@ fun AppRoot() {
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = androidx.compose.ui.unit.Dp.Hairline) {
                     bottomItems.forEach { item ->
                         NavigationBarItem(
                             selected = currentRoute == item.route,
@@ -79,8 +88,15 @@ fun AppRoot() {
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) }
+                            icon = { Icon(item.icon, contentDescription = null) },
+                            label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
                     }
                 }
@@ -90,11 +106,20 @@ fun AppRoot() {
         NavHost(
             navController = navController,
             startDestination = Routes.HOME,
-            modifier = Modifier.padding(padding)
+            modifier = Modifier.padding(padding),
+            enterTransition = { if (reduceMotion) EnterTransition.None else fadeIn(tween(180)) },
+            exitTransition = { if (reduceMotion) ExitTransition.None else fadeOut(tween(140)) },
+            popEnterTransition = { if (reduceMotion) EnterTransition.None else fadeIn(tween(180)) },
+            popExitTransition = { if (reduceMotion) ExitTransition.None else fadeOut(tween(140)) }
         ) {
             composable(Routes.HOME) {
                 HomeScreen(
-                    onCategoryClick = { catId -> navController.navigate(Routes.category(catId)) }
+                    onCategoryClick = { catId -> navController.navigate(Routes.category(catId)) },
+                    onOpenResult = { resultId -> navController.navigate(Routes.result(resultId)) },
+                    onResults = { navController.navigate(Routes.RESULTS) },
+                    onBookmarks = { navController.navigate(Routes.BOOKMARKS) },
+                    onResumeExam = { packId -> navController.navigate(Routes.exam(packId, -1)) },
+                    onSettings = { navController.navigate(Routes.SETTINGS) }
                 )
             }
             composable(Routes.CATEGORY) { entry ->
@@ -102,15 +127,21 @@ fun AppRoot() {
                 CategoryScreen(
                     catId = catId,
                     onBack = { navController.popBackStack() },
-                    onStartExam = { packId -> navController.navigate(Routes.exam(packId)) }
+                    onStartExam = { packId, limit -> navController.navigate(Routes.exam(packId, limit)) }
                 )
             }
             composable(Routes.EXAM) { entry ->
                 val packId = entry.arguments?.getString("packId").orEmpty()
+                val limit = entry.arguments?.getString("limit")?.toIntOrNull() ?: 0
                 ExamScreen(
                     packId = packId,
+                    limit = limit,
                     onExit = { navController.popBackStack() },
-                    onFinished = { resultId -> navController.navigate(Routes.result(resultId)) }
+                    onFinished = { resultId ->
+                        navController.navigate(Routes.result(resultId)) {
+                            popUpTo(Routes.EXAM) { inclusive = true }
+                        }
+                    }
                 )
             }
             composable(Routes.RESULT) { entry ->
@@ -128,6 +159,7 @@ fun AppRoot() {
             composable(Routes.BOOKMARKS) {
                 BookmarksScreen()
             }
+            composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.ABOUT) {
                 AboutScreen()
             }

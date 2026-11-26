@@ -1,3 +1,7 @@
+import java.util.Base64
+import java.security.KeyFactory
+import java.security.spec.X509EncodedKeySpec
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -13,18 +17,67 @@ android {
         applicationId = "com.parsaapps.nichmarket"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        testInstrumentationRunner = "com.parsaapps.nichmarket.IsolatedTestRunner"
+        versionCode = 3
+        versionName = "1.1.1"
 
-        // ---- Myket store configuration ----
-        val marketApplicationId = "ir.mservices.market"
-        val marketBindAddress = "ir.mservices.market.InAppBillingService.BIND"
-        manifestPlaceholders["marketApplicationId"] = marketApplicationId
-        manifestPlaceholders["marketBindAddress"] = marketBindAddress
-        manifestPlaceholders["marketPermission"] = "$marketApplicationId.BILLING"
 
-        // TODO: کلید عمومی (RSA Base64) را از پنل توسعه‌دهندگان مایکت بگیرید و اینجا قرار دهید
-        buildConfigField("String", "IAB_PUBLIC_KEY", "\"REPLACE_WITH_YOUR_MYKET_PUBLIC_KEY\"")
+    }
+
+        // This is a public verification key, not the secret APK-signing key.
+        // Fail on conflicting CI configuration rather than silently shipping the wrong key.
+        val myketPublicKey = rootProject.file("config/myket-public-key.txt").readText().trim()
+        val configuredPublicKey = providers.environmentVariable("MYKET_PUBLIC_KEY").orNull?.trim()
+        require(configuredPublicKey.isNullOrEmpty() || configuredPublicKey == myketPublicKey) {
+            "MYKET_PUBLIC_KEY does not match config/myket-public-key.txt"
+        }
+        require(myketPublicKey.matches(Regex("[A-Za-z0-9+/=]+"))) {
+            "Myket public key must be a single-line Base64 RSA public key"
+        }
+        try {
+            val keyBytes = Base64.getDecoder().decode(myketPublicKey)
+            KeyFactory.getInstance("RSA")
+                .generatePublic(X509EncodedKeySpec(keyBytes))
+        } catch (e: Exception) {
+            throw GradleException("Invalid Myket RSA public key", e)
+        }
+
+
+    val bazaarPublicKey = providers.environmentVariable("BAZAAR_PUBLIC_KEY").orNull?.trim().orEmpty()
+    if (bazaarPublicKey.isNotEmpty()) {
+        require(bazaarPublicKey.matches(Regex("[A-Za-z0-9+/=]+"))) { "Invalid Bazaar public key format" }
+        try {
+            KeyFactory.getInstance("RSA").generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(bazaarPublicKey)))
+        } catch (e: Exception) {
+            throw GradleException("Invalid Bazaar RSA public key", e)
+        }
+        require(bazaarPublicKey != myketPublicKey) { "Bazaar must use its own public billing key" }
+    }
+
+
+    // Bazaar's application ID and storage are independent of the published Myket app.
+    flavorDimensions += "store"
+    productFlavors {
+        create("myket") {
+            dimension = "store"
+            manifestPlaceholders["marketApplicationId"] = "ir.mservices.market"
+            manifestPlaceholders["marketBindAddress"] = "ir.mservices.market.InAppBillingService.BIND"
+            manifestPlaceholders["marketPermission"] = "ir.mservices.market.BILLING"
+            buildConfigField("String", "MARKET_NAME", "\"مایکت\"")
+            buildConfigField("boolean", "IS_BAZAAR", "false")
+            buildConfigField("String", "IAB_PUBLIC_KEY", "\"$myketPublicKey\"")
+        }
+        create("bazaar") {
+            dimension = "store"
+            applicationIdSuffix = ".bazaar"
+            manifestPlaceholders["marketApplicationId"] = "com.farsitel.bazaar"
+            manifestPlaceholders["marketBindAddress"] = "ir.cafebazaar.pardakht.InAppBillingService.BIND"
+            manifestPlaceholders["marketPermission"] = "com.farsitel.bazaar.permission.PAY_THROUGH_BAZAAR"
+            buildConfigField("String", "MARKET_NAME", "\"کافه‌بازار\"")
+            buildConfigField("boolean", "IS_BAZAAR", "true")
+            buildConfigField("String", "IAB_PUBLIC_KEY", "\"$bazaarPublicKey\"")
+            resValue("string", "app_name", "نیچ مارکت | بازار")
+        }
     }
 
     // ---- امضای Release از طریق متغیرهای محیطی (در GitHub Actions یا خط فرمان) ----
@@ -79,13 +132,35 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
 
-    // Myket In-App Billing SDK
-    implementation(libs.myket.billing)
+    // SDKs are isolated by store flavor.
+    "myketImplementation"(libs.myket.billing)
+    "bazaarImplementation"("com.github.cafebazaar.Poolakey:poolakey:2.3.0")
 
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
     debugImplementation(libs.androidx.ui.tooling)
+}
+
+// An unconfigured Bazaar build is useful only to register the package and obtain
+// its public key. It must never be accidentally treated as a store release.
+tasks.configureEach {
+    if (name == "preBazaarReleaseBuild") {
+        doFirst {
+            val key = providers.environmentVariable("BAZAAR_PUBLIC_KEY").orNull?.trim().orEmpty()
+            val bootstrap = providers.gradleProperty("allowBazaarBootstrap").orNull == "true"
+            require(key.isNotBlank() || bootstrap) {
+                "Set BAZAAR_PUBLIC_KEY or explicitly opt in to a non-publishable bootstrap build with -PallowBazaarBootstrap=true"
+            }
+            if (key.isBlank()) logger.warn("BAZAAR BOOTSTRAP ONLY: purchases disabled; do not publish this APK")
+        }
+    }
 }
