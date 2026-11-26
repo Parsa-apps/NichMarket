@@ -9,8 +9,6 @@ jobs:
   debug-apk:
     name: Validate bank and build debug APK
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # temporary transfer of an unconfigured test APK, no signing secrets
     steps:
       - uses: actions/checkout@v4
       - name: Validate question bank
@@ -36,26 +34,6 @@ jobs:
             done
           fi
           exit "$status"
-      - name: Transfer Bazaar test APK (temporary)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          apk=app/build/outputs/apk/bazaar/debug/app-bazaar-debug.apk
-          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
-          "$tools/aapt" dump badging "$apk" | head -1 | sed 's/^/::notice::BAZAAR_INFO=/'
-          "$tools/apksigner" verify "$apk"
-          APK="$apk" python3 - <<'PYCODE'
-          import base64, json, os, pathlib
-          data = pathlib.Path(os.environ['APK']).read_bytes()
-          pathlib.Path('/tmp/bazaar-test-blob.json').write_text(json.dumps({'encoding':'base64', 'content':base64.b64encode(data).decode('ascii')}))
-          PYCODE
-          sha=$(gh api "repos/$GH_REPO/git/blobs" --method POST --input /tmp/bazaar-test-blob.json --jq .sha)
-          echo "::notice::BAZAAR_TEST_BLOB=$sha"
-          echo "::notice::BAZAAR_TEST_SHA256=$(sha256sum "$apk" | cut -d' ' -f1)"
-          rm /tmp/bazaar-test-blob.json
       - name: Build instrumentation test APK
         env:
           MYKET_PUBLIC_KEY: ${{ secrets.MYKET_PUBLIC_KEY }}
@@ -82,6 +60,42 @@ jobs:
           path: app/build/outputs/apk/myket/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+  bazaar-coexistence-smoke:
+    name: Test independent Bazaar and Myket installs
+    needs: debug-apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: NichMarket-debug-apk
+          path: myket-apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: NichMarket-Bazaar-debug-UNCONFIGURED
+          path: bazaar-apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and start both independent applications
+        uses: ReactiveCircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim
+          script: |
+            set -e
+            adb install myket-apk/*.apk
+            adb install bazaar-apk/*.apk
+            adb shell pm list packages | grep -Fx 'package:com.parsaapps.nichmarket'
+            adb shell pm list packages | grep -Fx 'package:com.parsaapps.nichmarket.bazaar'
+            adb shell am start -W -n com.parsaapps.nichmarket/com.parsaapps.nichmarket.MainActivity
+            adb shell pidof com.parsaapps.nichmarket
+            adb shell am start -W -n com.parsaapps.nichmarket.bazaar/com.parsaapps.nichmarket.MainActivity
+            adb shell pidof com.parsaapps.nichmarket.bazaar
 
   release-preflight:
     name: Verify unsigned release build
