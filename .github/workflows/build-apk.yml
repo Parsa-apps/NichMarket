@@ -80,7 +80,7 @@ jobs:
 
   emulator-validation:
     name: Test Android on emulator
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -186,6 +186,16 @@ jobs:
       - name: Build signed release APK and app bundle
         if: env.HAS_KEYSTORE == 'true'
         run: ./gradlew assembleRelease bundleRelease --stacktrace
+      - name: Verify release signature and identifiers
+        if: env.HAS_KEYSTORE == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          apk=app/build/outputs/apk/release/app-release.apk
+          "$tools/apksigner" verify --verbose --print-certs "$apk"
+          "$tools/aapt" dump badging "$apk" | grep -F "package: name='com.parsaapps.nichmarket' versionCode='3' versionName='1.1.1'"
+          jarsigner -verify app/build/outputs/bundle/release/*.aab
       - uses: actions/upload-artifact@v4
         if: env.HAS_KEYSTORE == 'true'
         with:
