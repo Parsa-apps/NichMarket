@@ -102,6 +102,22 @@ jobs:
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim
           script: ./gradlew connectedDebugAndroidTest --stacktrace
+      - name: Check critical test coverage
+        run: |
+          python3 - <<'PYCODE'
+          import glob, xml.etree.ElementTree as ET
+          files = glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True)
+          cases = [case for file in files for case in ET.parse(file).getroot().iter('testcase')]
+          required = {
+              ('com.parsaapps.nichmarket.FreeExamFlowUiTest', 'freeExamCanBeSavedResumedAndReviewed'),
+              ('com.parsaapps.nichmarket.ExamRecoveryTest', 'savedDraftCanBeReadAfterStoreIsRecreated'),
+          }
+          executed = {(case.get('classname'), case.get('name')) for case in cases if case.find('skipped') is None}
+          missing = required - executed
+          if missing:
+              raise SystemExit('Critical instrumentation tests missing or skipped: ' + str(missing))
+          print(f'Critical flow and persistence tests executed; {len(cases)} test cases reported.')
+          PYCODE
       - name: Summarize test failures
         if: failure()
         run: |
@@ -121,6 +137,34 @@ jobs:
           name: android-test-reports
           path: app/build/reports/androidTests/connected/
           if-no-files-found: ignore
+
+  transfer-debug-apk:
+    name: Transfer test APK through GitHub API
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket'
+    needs: debug-apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: NichMarket-debug-apk
+          path: apk-transfer
+      - name: Upload temporary unreferenced Git blob
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PYCODE'
+          import base64, json, pathlib
+          files = list(pathlib.Path('apk-transfer').rglob('*.apk'))
+          assert len(files) == 1, f'Expected one APK, got {len(files)}'
+          payload = {'encoding': 'base64', 'content': base64.b64encode(files[0].read_bytes()).decode('ascii')}
+          pathlib.Path('/tmp/nich-apk-blob.json').write_text(json.dumps(payload))
+          PYCODE
+          sha256sum apk-transfer/*.apk | awk '{print "::notice::APK_SHA256=" $1}'
+          gh api "repos/$GH_REPO/git/blobs" --method POST --input /tmp/nich-apk-blob.json --jq '.sha' | awk '{print "::notice::APK_GIT_BLOB=" $1}'
+          rm /tmp/nich-apk-blob.json
 
   release-apk:
     name: Signed release APK (configured repositories only)
