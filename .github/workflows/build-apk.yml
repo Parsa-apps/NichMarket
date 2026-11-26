@@ -9,6 +9,8 @@ jobs:
   debug-apk:
     name: Validate bank and build debug APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # temporary transfer of an unconfigured test APK, no signing secrets
     steps:
       - uses: actions/checkout@v4
       - name: Validate question bank
@@ -34,6 +36,26 @@ jobs:
             done
           fi
           exit "$status"
+      - name: Transfer Bazaar test APK (temporary)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/bazaar/debug/app-bazaar-debug.apk
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          "$tools/aapt" dump badging "$apk" | head -1 | sed 's/^/::notice::BAZAAR_INFO=/'
+          "$tools/apksigner" verify "$apk"
+          APK="$apk" python3 - <<'PYCODE'
+          import base64, json, os, pathlib
+          data = pathlib.Path(os.environ['APK']).read_bytes()
+          pathlib.Path('/tmp/bazaar-test-blob.json').write_text(json.dumps({'encoding':'base64', 'content':base64.b64encode(data).decode('ascii')}))
+          PYCODE
+          sha=$(gh api "repos/$GH_REPO/git/blobs" --method POST --input /tmp/bazaar-test-blob.json --jq .sha)
+          echo "::notice::BAZAAR_TEST_BLOB=$sha"
+          echo "::notice::BAZAAR_TEST_SHA256=$(sha256sum "$apk" | cut -d' ' -f1)"
+          rm /tmp/bazaar-test-blob.json
       - name: Build instrumentation test APK
         env:
           MYKET_PUBLIC_KEY: ${{ secrets.MYKET_PUBLIC_KEY }}
