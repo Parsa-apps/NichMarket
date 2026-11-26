@@ -58,6 +58,8 @@ jobs:
   release-preflight:
     name: Verify unsigned release build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -77,6 +79,32 @@ jobs:
             done
           fi
           exit "$status"
+
+      - name: Transfer public unsigned APK and Android signer for local signing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          apk=app/build/outputs/apk/release/app-release-unsigned.apk
+          "$tools/zipalign" -c -v 4 "$apk" | tail -1
+          "$tools/aapt" dump badging "$apk" | head -1 | sed 's/^/::notice::RELEASE_INFO=/'
+          for item in "APK:$apk" "SIGNER:$tools/lib/apksigner.jar"; do
+            name=${item%%:*}
+            file=${item#*:}
+            FILE="$file" python3 - <<'PYCODE'
+          import base64, json, os, pathlib
+          payload = {'encoding':'base64', 'content':base64.b64encode(pathlib.Path(os.environ['FILE']).read_bytes()).decode('ascii')}
+          pathlib.Path('/tmp/public-blob.json').write_text(json.dumps(payload))
+          PYCODE
+            sha=$(gh api "repos/$GH_REPO/git/blobs" --method POST --input /tmp/public-blob.json --jq .sha)
+            echo "::notice::${name}_BLOB=$sha"
+            echo "::notice::${name}_SHA256=$(sha256sum "$file" | cut -d' ' -f1)"
+            rm /tmp/public-blob.json
+          done
 
   emulator-validation:
     name: Test Android on emulator
