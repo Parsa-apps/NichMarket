@@ -20,3 +20,6 @@ local.properties
 # Python caches
 __pycache__/
 *.py[cod]
+
+# Local release deliverables may include private signing backups; never commit them.
+/deliverables/
