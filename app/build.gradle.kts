@@ -14,8 +14,8 @@ android {
         minSdk = 24
         targetSdk = 35
         testInstrumentationRunner = "com.parsaapps.nichmarket.IsolatedTestRunner"
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
 
         // ---- Myket store configuration ----
         val marketApplicationId = "ir.mservices.market"
@@ -24,10 +24,22 @@ android {
         manifestPlaceholders["marketBindAddress"] = marketBindAddress
         manifestPlaceholders["marketPermission"] = "$marketApplicationId.BILLING"
 
-        // Public verification key from Myket; never store the private signing key in source.
-        val myketPublicKey = providers.environmentVariable("MYKET_PUBLIC_KEY").orNull.orEmpty().trim()
-        require(myketPublicKey.isEmpty() || myketPublicKey.matches(Regex("[A-Za-z0-9+/=]+"))) {
-            "MYKET_PUBLIC_KEY must be a single-line Base64 RSA public key"
+        // This is a public verification key, not the secret APK-signing key.
+        // Fail on conflicting CI configuration rather than silently shipping the wrong key.
+        val myketPublicKey = rootProject.file("config/myket-public-key.txt").readText().trim()
+        val configuredPublicKey = providers.environmentVariable("MYKET_PUBLIC_KEY").orNull?.trim()
+        require(configuredPublicKey.isNullOrEmpty() || configuredPublicKey == myketPublicKey) {
+            "MYKET_PUBLIC_KEY does not match config/myket-public-key.txt"
+        }
+        require(myketPublicKey.matches(Regex("[A-Za-z0-9+/=]+"))) {
+            "Myket public key must be a single-line Base64 RSA public key"
+        }
+        try {
+            val keyBytes = java.util.Base64.getDecoder().decode(myketPublicKey)
+            java.security.KeyFactory.getInstance("RSA")
+                .generatePublic(java.security.spec.X509EncodedKeySpec(keyBytes))
+        } catch (e: Exception) {
+            throw GradleException("Invalid Myket RSA public key", e)
         }
         buildConfigField("String", "IAB_PUBLIC_KEY", "\"$myketPublicKey\"")
     }

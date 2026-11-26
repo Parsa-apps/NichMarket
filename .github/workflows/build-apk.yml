@@ -80,7 +80,7 @@ jobs:
 
   emulator-validation:
     name: Test Android on emulator
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -94,6 +94,15 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Build release with an ephemeral test key (not for distribution)
+        env:
+          SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/test-only.keystore
+          SIGNING_STORE_PASSWORD: test-only-password
+          SIGNING_KEY_ALIAS: test-only
+          SIGNING_KEY_PASSWORD: test-only-password
+        run: |
+          keytool -genkeypair -keystore "$SIGNING_KEYSTORE_PATH" -storepass "$SIGNING_STORE_PASSWORD" -keypass "$SIGNING_KEY_PASSWORD" -alias "$SIGNING_KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 1 -dname 'CN=Test Only' -noprompt
+          ./gradlew assembleRelease --stacktrace
       - name: Run instrumentation tests
         uses: ReactiveCircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
         with:
@@ -101,7 +110,12 @@ jobs:
           target: google_apis
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim
-          script: ./gradlew connectedDebugAndroidTest --stacktrace
+          script: |
+            adb install app/build/outputs/apk/release/app-release.apk
+            adb shell am start -W -n com.parsaapps.nichmarket/.MainActivity
+            adb shell pidof com.parsaapps.nichmarket
+            adb uninstall com.parsaapps.nichmarket
+            ./gradlew connectedDebugAndroidTest --stacktrace
       - name: Check critical test coverage
         run: |
           python3 - <<'PYCODE'
@@ -110,6 +124,7 @@ jobs:
           cases = [case for file in files for case in ET.parse(file).getroot().iter('testcase')]
           required = {
               ('com.parsaapps.nichmarket.FreeExamFlowUiTest', 'freeExamCanBeSavedResumedAndReviewed'),
+              ('com.parsaapps.nichmarket.ReleaseConfigurationTest', 'embeddedMyketKeyIsTheRequestedKey'),
               ('com.parsaapps.nichmarket.ExamRecoveryTest', 'savedDraftCanBeReadAfterStoreIsRecreated'),
           }
           executed = {(case.get('classname'), case.get('name')) for case in cases if case.find('skipped') is None}
@@ -154,7 +169,7 @@ jobs:
       - name: Verify required release configuration
         if: env.HAS_KEYSTORE == 'true'
         run: |
-          test -n "$MYKET_PUBLIC_KEY" && test -n "$SIGNING_STORE_PASSWORD" && test -n "$SIGNING_KEY_ALIAS" && test -n "$SIGNING_KEY_PASSWORD" || { echo 'Missing Myket public key or signing secret' >&2; exit 1; }
+          test -n "$SIGNING_STORE_PASSWORD" && test -n "$SIGNING_KEY_ALIAS" && test -n "$SIGNING_KEY_PASSWORD" || { echo 'Missing signing secret' >&2; exit 1; }
           python3 tools/validate_questions.py
       - uses: actions/setup-java@v4
         if: env.HAS_KEYSTORE == 'true'
