@@ -1,9 +1,5 @@
 package com.parsaapps.nichmarket.util
 
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
 /** تبدیل ارقام لاتین به فارسی */
 fun String.toPersianDigits(): String {
     val fa = "۰۱۲۳۴۵۶۷۸۹"
@@ -27,10 +23,12 @@ fun formatClock(totalSeconds: Int): String {
     return "$m:$s"
 }
 
-/** تاریخ شمسی از timestamp */
-fun formatShamsi(epochMs: Long): String = try {
-    val sdf = SimpleDateFormat("yyyy/MM/dd", Locale("fa", "IR"))
-    sdf.format(Date(epochMs))
-} catch (t: Throwable) {
-    ""
+/** تاریخ شمسی مطابق منطقه زمانی دستگاه (Android ICU، از API 24). */
+fun formatShamsi(epochMs: Long, timeZone: android.icu.util.TimeZone = android.icu.util.TimeZone.getDefault()): String {
+    val cal = android.icu.util.Calendar.getInstance(timeZone, android.icu.util.ULocale("fa_IR@calendar=persian"))
+    cal.timeInMillis = epochMs
+    val year = cal.get(android.icu.util.Calendar.YEAR)
+    val month = cal.get(android.icu.util.Calendar.MONTH) + 1
+    val day = cal.get(android.icu.util.Calendar.DAY_OF_MONTH)
+    return "$year/${month.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}".toPersianDigits()
 }

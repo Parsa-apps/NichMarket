@@ -11,6 +11,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven("https://maven.myket.ir")
+        maven("https://jitpack.io") { content { includeGroup("com.github.cafebazaar.Poolakey") } }
     }
 }
 rootProject.name = "NichMarket"
