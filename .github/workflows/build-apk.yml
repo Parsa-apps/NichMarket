@@ -97,6 +97,39 @@ jobs:
             adb shell am start -W -n com.parsaapps.nichmarket.bazaar/com.parsaapps.nichmarket.MainActivity
             adb shell pidof com.parsaapps.nichmarket.bazaar
 
+  bazaar-final-smoke:
+    name: Test exact signed Bazaar release (temporary)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and verify the signed non-secret APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GH_REPO/git/blobs/6cdac99e5c7e40561b7df7660494cc5e15e7a408" > bazaar-release.apk
+          echo 'c1fd71d3e85a4818cac4c30338e3c5ba92a15bbfb912e84717611cad7f0d13bb  bazaar-release.apk' | sha256sum -c
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          "$tools/apksigner" verify --verbose --print-certs bazaar-release.apk
+          "$tools/aapt" dump badging bazaar-release.apk | grep -F "package: name='com.parsaapps.nichmarket.bazaar' versionCode='3' versionName='1.1.1'"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and launch signed Bazaar APK
+        uses: ReactiveCircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim
+          script: |
+            set -e
+            adb install bazaar-release.apk
+            adb shell am start -W -n com.parsaapps.nichmarket.bazaar/com.parsaapps.nichmarket.MainActivity
+            adb shell pidof com.parsaapps.nichmarket.bazaar
+
   release-preflight:
     name: Verify unsigned release build
     runs-on: ubuntu-latest
