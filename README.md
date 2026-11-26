@@ -26,6 +26,8 @@
 
 جزئیات ۵۰ تغییر اخیر، نحوه محاسبه آمار و محدودیت‌ها در [docs/PRO_50.md](docs/PRO_50.md) آمده است. ساخت debug و تست‌های instrumentation روی شبیه‌ساز Android 10 در CI بررسی شده‌اند؛ اجرای شبیه‌ساز در workflowهای بعدی از طریق workflow_dispatch فعال است. تنظیمات و هدف روی همین دستگاه ذخیره می‌شوند؛ هدف از پاسخ‌های کارنامه‌های امروز محاسبه می‌شود، نه آزمون ناتمام. فلش‌کارت‌ها آزمون جدید یا رتبه ایجاد نمی‌کنند.
 
+نقشه فازها و وضعیت واقعی پروژه: [نقشه راه ۱۰۰ فازی](docs/ROADMAP_100.md)؛ راهنمای امضا، تست و گیت‌های انتشار: [چک‌لیست انتشار](docs/RELEASE_QA.md).
+
 ## تکنولوژی‌ها
 
 | مورد | انتخاب |
@@ -109,7 +111,7 @@ Gradle Wrapper نسخه ۸.۱۰.۲ در مخزن است. JDK 17، Android SDK و
 
 پس از تنظیم `MYKET_PUBLIC_KEY` و متغیرهای `SIGNING_KEYSTORE_PATH` (مسیر مطلق)، `SIGNING_STORE_PASSWORD`، `SIGNING_KEY_ALIAS` و `SIGNING_KEY_PASSWORD`، نسخه Release امضاشده بسازید. بدون امضا خروجی قابل انتشار نیست:
 ```bash
-./gradlew bundleRelease
+./gradlew assembleRelease bundleRelease
 ```
 
 ---
@@ -119,7 +121,7 @@ Gradle Wrapper نسخه ۸.۱۰.۲ در مخزن است. JDK 17، Android SDK و
 فایل `.github/workflows/build-apk.yml` در ریپو موجود است و به‌صورت **خودکار** بیلد می‌گیرد:
 
 - **Debug APK** — در push، pull request یا اجرای دستی، پس از اعتبارسنجی ساختاری ساخته می‌شود و از Artifacts قابل دانلود است. پروژه تست اندروید نیز کامپایل می‌شود؛ اجرای تست‌ها نیازمند دستگاه یا شبیه‌ساز است. ساخت موفق به‌تنهایی به معنی تأیید خرید یا کیفیت محتوایی نیست.
-- **Release APK امضاشده** — فقط در صورتی که ۵ Secret زیر را در Settings → Secrets and variables → Actions تنظیم کنید:
+- **Release APK و AAB امضاشده** — فقط در صورتی که ۵ Secret زیر را در Settings → Secrets and variables → Actions تنظیم کنید:
   | Secret | مقدار |
   |---|---|
   | `ANDROID_KEYSTORE_B64` | فایل keystore شما به‌صورت Base64 (`base64 -w0 my-release-key.jks`) |
@@ -128,7 +130,7 @@ Gradle Wrapper نسخه ۸.۱۰.۲ در مخزن است. JDK 17، Android SDK و
   | `ANDROID_KEY_PASSWORD` | رمز کلید |
   | `MYKET_PUBLIC_KEY` | کلید عمومی Base64 اپ در پنل مایکت |
 
-  سپس در ریپو از تب **Actions → Build APK → Run workflow** اجرا کنید؛ APK امضاشده در Artifacts ظاهر می‌شود و آماده انتشار در مایکت است.
+  سپس در ریپو از تب **Actions → Build APK → Run workflow** اجرا کنید؛ APK و AAB امضاشده در Artifacts ظاهر می‌شوند. پیش از انتشار، امضا، خرید واقعی و تمام گیت‌های QA باید بررسی شوند.
 
 > اگر keystore تنظیم نشده باشد، کار انتشار در CI اجرا نمی‌شود. با وجود keystore، نبود هر یک از مقادیر امضا یا کلید عمومی باعث شکست صریح کار انتشار می‌شود.
 

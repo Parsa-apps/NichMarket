@@ -1,6 +1,11 @@
 package com.parsaapps.nichmarket.ui.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
@@ -54,7 +59,7 @@ private data class BottomItem(
 )
 
 @Composable
-fun AppRoot() {
+fun AppRoot(reduceMotion: Boolean = false) {
     val navController: NavHostController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -101,7 +106,11 @@ fun AppRoot() {
         NavHost(
             navController = navController,
             startDestination = Routes.HOME,
-            modifier = Modifier.padding(padding)
+            modifier = Modifier.padding(padding),
+            enterTransition = { if (reduceMotion) EnterTransition.None else fadeIn(tween(180)) },
+            exitTransition = { if (reduceMotion) ExitTransition.None else fadeOut(tween(140)) },
+            popEnterTransition = { if (reduceMotion) EnterTransition.None else fadeIn(tween(180)) },
+            popExitTransition = { if (reduceMotion) ExitTransition.None else fadeOut(tween(140)) }
         ) {
             composable(Routes.HOME) {
                 HomeScreen(

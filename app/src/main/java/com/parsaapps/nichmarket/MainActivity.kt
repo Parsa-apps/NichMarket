@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
                 LocalLayoutDirection provides LayoutDirection.Rtl,
                 LocalDensity provides Density(density.density, density.fontScale * if (settings.largeText) 1.15f else 1f)
             ) {
-                NichMarketTheme(darkTheme = dark) { AppRoot() }
+                NichMarketTheme(darkTheme = dark) { AppRoot(reduceMotion = settings.reduceMotion) }
             }
         }
     }

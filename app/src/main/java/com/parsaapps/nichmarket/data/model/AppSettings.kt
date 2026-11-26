@@ -8,5 +8,6 @@ data class AppSettings(
     val largeText: Boolean = false,
     val autoAdvance: Boolean = false,
     val hideTimer: Boolean = false,
-    val dailyGoal: Int = 10
+    val dailyGoal: Int = 10,
+    val reduceMotion: Boolean = false
 )

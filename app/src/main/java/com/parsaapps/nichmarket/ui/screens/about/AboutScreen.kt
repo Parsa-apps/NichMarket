@@ -1,13 +1,27 @@
 package com.parsaapps.nichmarket.ui.screens.about
 
+import android.animation.ValueAnimator
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.database.ContentObserver
+import android.content.Context
+import android.provider.Settings
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,6 +51,10 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -44,6 +62,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -53,6 +76,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.parsaapps.nichmarket.BuildConfig
+import com.parsaapps.nichmarket.Graph
+import com.parsaapps.nichmarket.data.model.AppSettings
 import com.parsaapps.nichmarket.R
 import com.parsaapps.nichmarket.ui.components.GradientHeader
 import com.parsaapps.nichmarket.util.toPersianDigits
@@ -75,6 +100,7 @@ fun AboutScreen() {
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showFontLicense by remember { mutableStateOf(false) }
+    val settings by Graph.userStore.settings.collectAsState(initial = AppSettings())
 
     fun open(intent: Intent) {
         try {
@@ -106,13 +132,7 @@ fun AboutScreen() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Image(
-                            painter = painterResource(R.drawable.parsa_apps_logo),
-                            contentDescription = "لوگوی رسمی پارسا اپس",
-                            modifier = Modifier.size(140.dp)
-                        )
-                        Text("پارسا اپس", style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold)
+                        PublisherIdentity(reduceMotion = settings.reduceMotion)
                         Text("ایده‌های بزرگ برای دنیای کوچک", style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
                         Text(
@@ -122,8 +142,6 @@ fun AboutScreen() {
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
                         )
-                        Text("مدیریت و توسعه اصلی: فرشاد پارسا", style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold)
                         Button(onClick = { openWeb(WEBSITE) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Filled.Language, contentDescription = null)
                             Spacer(Modifier.size(8.dp))
@@ -208,6 +226,62 @@ fun AboutScreen() {
             text = { Text(license, modifier = Modifier.verticalScroll(rememberScrollState()),
                 style = MaterialTheme.typography.bodySmall) },
             confirmButton = { TextButton(onClick = { showFontLicense = false }) { Text("بستن") } })
+    }
+}
+
+/** Animation is scoped to the visible identity item and respects reduced-motion preferences. */
+@Composable
+internal fun PublisherIdentity(reduceMotion: Boolean) {
+    val systemAllowsMotion = rememberSystemMotionEnabled()
+    val glow: State<Float> = if (!reduceMotion && systemAllowsMotion) {
+        val transition = rememberInfiniteTransition(label = "publisherGlow")
+        transition.animateFloat(initialValue = 0.20f, targetValue = 0.46f,
+            animationSpec = infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+            label = "publisherGlowAlpha")
+    } else rememberUpdatedState(0.26f)
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.goldenAura(glow).padding(14.dp), contentAlignment = Alignment.Center) {
+            Image(painter = painterResource(R.drawable.parsa_apps_logo), contentDescription = "لوگوی رسمی پارسا اپس",
+                modifier = Modifier.size(140.dp))
+        }
+        Text("پارسا اپس", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Box(Modifier.goldenAura(glow).padding(horizontal = 16.dp, vertical = 6.dp)) {
+            Text("فرشاد پارسا • مدیریت و توسعه اصلی", style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+private fun systemMotionEnabled(context: Context): Boolean = runCatching {
+    if (Build.VERSION.SDK_INT >= 26) ValueAnimator.areAnimatorsEnabled()
+    else Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+}.getOrDefault(true)
+
+@Composable
+private fun rememberSystemMotionEnabled(): Boolean {
+    val context = LocalContext.current
+    var enabled by remember(context) { mutableStateOf(systemMotionEnabled(context)) }
+    DisposableEffect(context) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) { enabled = systemMotionEnabled(context) }
+        }
+        val registered = runCatching {
+            context.contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), false, observer
+            )
+        }.isSuccess
+        onDispose { if (registered) context.contentResolver.unregisterContentObserver(observer) }
+    }
+    return enabled
+}
+
+private fun Modifier.goldenAura(glow: State<Float>): Modifier = drawWithCache {
+    val radius = CornerRadius(size.minDimension / 2f)
+    val gradient = Brush.radialGradient(listOf(Color(0xFFD8A73E), Color(0x00D8A73E)), radius = size.maxDimension * .75f)
+    val stroke = Stroke(width = 1.dp.toPx())
+    onDrawBehind {
+        drawRoundRect(brush = gradient, alpha = glow.value, cornerRadius = radius)
+        drawRoundRect(color = Color(0xFFD2A54F).copy(alpha = glow.value), cornerRadius = radius, style = stroke)
     }
 }
 

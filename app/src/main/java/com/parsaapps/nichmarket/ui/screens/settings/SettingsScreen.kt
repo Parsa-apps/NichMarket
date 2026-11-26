@@ -63,6 +63,7 @@ class SettingsViewModel : ViewModel() {
     fun largeText(value: Boolean) = save { Graph.userStore.setLargeText(value) }
     fun autoAdvance(value: Boolean) = save { Graph.userStore.setAutoAdvance(value) }
     fun hideTimer(value: Boolean) = save { Graph.userStore.setHideTimer(value) }
+    fun reduceMotion(value: Boolean) = save { Graph.userStore.setReduceMotion(value) }
     fun dailyGoal(value: Int) = save { Graph.userStore.setDailyGoal(value) }
     fun reset() = save { Graph.userStore.resetSettings() }
 }
@@ -94,6 +95,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
             SettingSwitch("متن بزرگ‌تر", "اندازه متن برنامه را علاوه بر تنظیم دستگاه افزایش می‌دهد.",
                 settings.largeText, vm::largeText)
+            SettingSwitch("کاهش حرکت", "جلوه‌های متحرک و گذار صفحات را خاموش می‌کند.",
+                settings.reduceMotion, vm::reduceMotion)
             Text("رفتار آزمون", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp))
             SettingSwitch("رفتن خودکار به سؤال بعد", "پس از انتخاب گزینه؛ در سؤال آخر خودکار پایان نمی‌یابد.",
                 settings.autoAdvance, vm::autoAdvance)
@@ -114,7 +117,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
     if (confirmReset) AlertDialog(onDismissRequest = { confirmReset = false }, title = { Text("بازگرداندن تنظیمات") },
-        text = { Text("تنها تنظیمات ظاهر و آزمون به حالت اولیه بازمی‌گردند.") },
+        text = { Text("تنظیمات ظاهر، حرکت، آزمون و هدف روزانه به حالت اولیه بازمی‌گردند.") },
         confirmButton = { TextButton(onClick = { confirmReset = false; vm.reset() }) { Text("بازگرداندن") } },
         dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("انصراف") } })
 }

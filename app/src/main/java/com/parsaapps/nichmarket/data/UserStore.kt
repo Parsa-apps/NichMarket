@@ -41,6 +41,7 @@ class UserStore(private val context: Context, private val store: DataStore<Prefe
     private val KEY_AUTO_ADVANCE = booleanPreferencesKey("auto_advance")
     private val KEY_HIDE_TIMER = booleanPreferencesKey("hide_timer")
     private val KEY_DAILY_GOAL = intPreferencesKey("daily_goal")
+    private val KEY_REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
 
     val settings: Flow<AppSettings> = store.data.map { prefs ->
         AppSettings(
@@ -48,16 +49,18 @@ class UserStore(private val context: Context, private val store: DataStore<Prefe
             largeText = prefs[KEY_LARGE_TEXT] ?: false,
             autoAdvance = prefs[KEY_AUTO_ADVANCE] ?: false,
             hideTimer = prefs[KEY_HIDE_TIMER] ?: false,
-            dailyGoal = (prefs[KEY_DAILY_GOAL] ?: 10).coerceIn(5, 100)
+            dailyGoal = (prefs[KEY_DAILY_GOAL] ?: 10).coerceIn(5, 100),
+            reduceMotion = prefs[KEY_REDUCE_MOTION] ?: false
         )
     }
     suspend fun setTheme(value: AppTheme) { store.edit { it[KEY_THEME] = value.name } }
     suspend fun setLargeText(value: Boolean) { store.edit { it[KEY_LARGE_TEXT] = value } }
     suspend fun setAutoAdvance(value: Boolean) { store.edit { it[KEY_AUTO_ADVANCE] = value } }
     suspend fun setHideTimer(value: Boolean) { store.edit { it[KEY_HIDE_TIMER] = value } }
+    suspend fun setReduceMotion(value: Boolean) { store.edit { it[KEY_REDUCE_MOTION] = value } }
     suspend fun setDailyGoal(value: Int) { require(value in 5..100); store.edit { it[KEY_DAILY_GOAL] = value } }
     suspend fun resetSettings() { store.edit {
-        it.remove(KEY_THEME); it.remove(KEY_LARGE_TEXT); it.remove(KEY_AUTO_ADVANCE); it.remove(KEY_HIDE_TIMER); it.remove(KEY_DAILY_GOAL)
+        it.remove(KEY_THEME); it.remove(KEY_LARGE_TEXT); it.remove(KEY_AUTO_ADVANCE); it.remove(KEY_HIDE_TIMER); it.remove(KEY_DAILY_GOAL); it.remove(KEY_REDUCE_MOTION)
     } }
 
 

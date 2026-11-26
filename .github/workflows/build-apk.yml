@@ -55,6 +55,29 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  release-preflight:
+    name: Verify unsigned release build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build unsigned APK and AAB (not for distribution)
+        shell: bash
+        run: |
+          set +e
+          ./gradlew assembleRelease bundleRelease --stacktrace 2>&1 | tee "$RUNNER_TEMP/nich-release.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E -i '(^e: |error:|FAILURE:|could not|what went wrong|caused by:)' "$RUNNER_TEMP/nich-release.log" | tail -8 | while IFS= read -r line; do
+              printf '::error::%s\n' "$line"
+            done
+          fi
+          exit "$status"
+
   emulator-validation:
     name: Test Android on emulator
     if: github.event_name == 'workflow_dispatch'
@@ -116,13 +139,21 @@ jobs:
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > "$SIGNING_KEYSTORE_PATH"
-      - name: Build signed release APK
+      - name: Build signed release APK and app bundle
         if: env.HAS_KEYSTORE == 'true'
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleRelease bundleRelease --stacktrace
       - uses: actions/upload-artifact@v4
         if: env.HAS_KEYSTORE == 'true'
         with:
           name: NichMarket-release-apk
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 60
+
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          name: NichMarket-release-aab
+          path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 60
