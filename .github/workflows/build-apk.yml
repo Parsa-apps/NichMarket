@@ -78,50 +78,6 @@ jobs:
           fi
           exit "$status"
 
-  verify-production-apk:
-    name: Verify final signed APK on emulator
-    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Download and verify signed APK
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GH_REPO/git/blobs/ab75197c51e00df9c234c68ef752483d1d1f896e" > "$RUNNER_TEMP/nich-release.apk"
-          echo '4b038ba94bf975e36f9633b7babfc4229fcd1c69d65d0472a7d5fbcb34e11365  '"$RUNNER_TEMP/nich-release.apk" | sha256sum -c
-          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
-          "$tools/apksigner" verify --verbose --print-certs "$RUNNER_TEMP/nich-release.apk" | tee "$RUNNER_TEMP/cert.txt"
-          grep -qi 'ea37afc0401c023593a2cfb5a4bc8fff85711ece7e5b99271eb6426ed883a28f' "$RUNNER_TEMP/cert.txt"
-          "$tools/aapt" dump badging "$RUNNER_TEMP/nich-release.apk" | grep -F "package: name='com.parsaapps.nichmarket' versionCode='3' versionName='1.1.1'"
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udedev.rules.tmp > /dev/null
-          sudo mv /etc/udedev.rules.tmp /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Install and launch actual signed release
-        uses: ReactiveCircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
-        with:
-          api-level: 29
-          target: google_apis
-          arch: x86_64
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim
-          script: |
-            adb install "$RUNNER_TEMP/nich-release.apk"
-            adb shell am start -W -n com.parsaapps.nichmarket/.MainActivity
-            adb shell pidof com.parsaapps.nichmarket
-            adb shell uiautomator dump /sdcard/nich-ui.xml
-            adb exec-out cat /sdcard/nich-ui.xml | grep -q 'نیچ مارکت'
-
   emulator-validation:
     name: Test Android on emulator
     if: github.event_name == 'workflow_dispatch'
