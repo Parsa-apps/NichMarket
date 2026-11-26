@@ -106,7 +106,7 @@ Gradle Wrapper نسخه ۸.۱۰.۲ در مخزن است. JDK 17، Android SDK و
 
 ### ۴. انتشار
 
-پس از تنظیم `MYKET_PUBLIC_KEY` و متغیرهای `SIGNING_KEYSTORE_PATH` (مسیر مطلق)، `SIGNING_STORE_PASSWORD`، `SIGNING_KEY_ALIAS` و `SIGNING_KEY_PASSWORD`، نسخه Release امضاشده بسازید. بدون امضا خروجی قابل انتشار نیست:
+پس از بررسی کلید عمومی موجود و تنظیم متغیرهای `SIGNING_KEYSTORE_PATH` (مسیر مطلق)، `SIGNING_STORE_PASSWORD`، `SIGNING_KEY_ALIAS` و `SIGNING_KEY_PASSWORD`، نسخه Release امضاشده بسازید. بدون امضا خروجی قابل انتشار نیست:
 ```bash
 ./gradlew assembleRelease bundleRelease
 ```

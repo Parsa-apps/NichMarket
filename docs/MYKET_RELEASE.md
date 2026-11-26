@@ -19,7 +19,7 @@
 - `ANDROID_KEY_PASSWORD`: رمز کلید.
 - `MYKET_PUBLIC_KEY` اختیاری است؛ اگر تنظیم شود باید دقیقاً با `config/myket-public-key.txt` یکسان باشد.
 
-پس از تنظیم، workflow ساخت را روی همین شاخه اجرا کنید. خروجی امضاشده در artifactهای `NichMarket-release-apk` و `NichMarket-release-aab` خواهد بود. APK را قبل از آپلود با `apksigner verify --verbose --print-certs app-release.apk` بررسی کنید و اثرانگشت گواهی را با نسخه منتشرشده مقایسه کنید. در صورت نیاز به ساخت محلی، متغیرهای `SIGNING_KEYSTORE_PATH`، `SIGNING_STORE_PASSWORD`، `SIGNING_KEY_ALIAS` و `SIGNING_KEY_PASSWORD` را در محیط امن قرار دهید و `./gradlew assembleRelease bundleRelease` اجرا کنید. خروجی بدون امضا یا با کلید آزمایشی CI قابل انتشار نیست. GitHub Secrets فقط در Actions استفاده می‌شوند و در فایل خروجی یا مخزن قرار نمی‌گیرند.
+پس از تنظیم، workflow ساخت را روی همین شاخه اجرا کنید. خروجی امضاشده در artifactهای `NichMarket-release-apk` و `NichMarket-release-aab` خواهد بود. APK را قبل از آپلود با `apksigner verify --verbose --print-certs app-release.apk` بررسی کنید و اثرانگشت گواهی را با نسخه منتشرشده مقایسه کنید. در صورت نیاز به ساخت محلی، متغیرهای `SIGNING_KEYSTORE_PATH`، `SIGNING_STORE_PASSWORD`، `SIGNING_KEY_ALIAS` و `SIGNING_KEY_PASSWORD` را در محیط امن قرار دهید و `./gradlew assembleRelease bundleRelease` اجرا کنید. خروجی بدون امضا یا با کلید آزمایشی CI قابل انتشار نیست. اسرار امضا نباید در فایل خروجی یا مخزن قرار بگیرند؛ کلید عمومی پرداخت ذاتاً در برنامه قابل استخراج است.
 
 ## تنظیم خریدها در پنل
 

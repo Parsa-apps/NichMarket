@@ -1,3 +1,7 @@
+import java.util.Base64
+import java.security.KeyFactory
+import java.security.spec.X509EncodedKeySpec
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -35,9 +39,9 @@ android {
             "Myket public key must be a single-line Base64 RSA public key"
         }
         try {
-            val keyBytes = java.util.Base64.getDecoder().decode(myketPublicKey)
-            java.security.KeyFactory.getInstance("RSA")
-                .generatePublic(java.security.spec.X509EncodedKeySpec(keyBytes))
+            val keyBytes = Base64.getDecoder().decode(myketPublicKey)
+            KeyFactory.getInstance("RSA")
+                .generatePublic(X509EncodedKeySpec(keyBytes))
         } catch (e: Exception) {
             throw GradleException("Invalid Myket RSA public key", e)
         }

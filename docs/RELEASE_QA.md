@@ -17,7 +17,7 @@ APK آزمایشی در `app/build/outputs/apk/debug/` است. تست شبیه�
 
 ## ساخت انتشار
 
-از **کلید امضای نسخه قبلی** استفاده کنید؛ ساخت کلید جدید باعث ناسازگاری به‌روزرسانی می‌شود. کلید خصوصی و رمزها را در سورس یا چت قرار ندهید. متغیرهای `SIGNING_KEYSTORE_PATH`، `SIGNING_STORE_PASSWORD`، `SIGNING_KEY_ALIAS`، `SIGNING_KEY_PASSWORD` و `MYKET_PUBLIC_KEY` را از محیط امن تنظیم کنید، سپس:
+از **کلید امضای نسخه قبلی** استفاده کنید؛ ساخت کلید جدید باعث ناسازگاری به‌روزرسانی می‌شود. کلید خصوصی و رمزها را در سورس یا چت قرار ندهید. متغیرهای `SIGNING_KEYSTORE_PATH`، `SIGNING_STORE_PASSWORD`، `SIGNING_KEY_ALIAS`، `SIGNING_KEY_PASSWORD` را از محیط امن تنظیم کنید؛ کلید عمومی در پروژه موجود است و متغیر اختیاری `MYKET_PUBLIC_KEY` در صورت تنظیم باید با آن برابر باشد، سپس:
 
 ```bash
 ./gradlew assembleRelease bundleRelease
