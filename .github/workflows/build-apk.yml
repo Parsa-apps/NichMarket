@@ -100,8 +100,6 @@ jobs:
   release-preflight:
     name: Verify unsigned release build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # temporary transfer of unsigned Bazaar APK
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -121,33 +119,6 @@ jobs:
             done
           fi
           exit "$status"
-
-      - name: Verify and transfer Bazaar unsigned build (temporary)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
-          apk=app/build/outputs/apk/bazaar/release/app-bazaar-release-unsigned.apk
-          "$tools/aapt" dump badging "$apk" | grep -F "package: name='com.parsaapps.nichmarket.bazaar' versionCode='3' versionName='1.1.1'"
-          "$tools/aapt" dump permissions "$apk" | grep -F 'com.farsitel.bazaar.permission.PAY_THROUGH_BAZAAR'
-          ! "$tools/aapt" dump permissions "$apk" | grep -F 'ir.mservices.market.BILLING'
-          "$tools/zipalign" -c 4 "$apk"
-          APK="$apk" python3 - <<'PYCODE'
-          import base64, json, os, pathlib, zipfile
-          apk = pathlib.Path(os.environ['APK'])
-          with zipfile.ZipFile(apk) as z:
-              dex = b''.join(z.read(n) for n in z.namelist() if n.endswith('.dex'))
-          assert pathlib.Path('config/bazaar-public-key.txt').read_text().strip().encode() in dex, 'Bazaar public key not embedded'
-          assert pathlib.Path('config/myket-public-key.txt').read_text().strip().encode() not in dex, 'Myket key unexpectedly embedded'
-          pathlib.Path('/tmp/bazaar-unsigned-blob.json').write_text(json.dumps({'encoding': 'base64', 'content': base64.b64encode(apk.read_bytes()).decode('ascii')}))
-          PYCODE
-          sha=$(gh api "repos/$GH_REPO/git/blobs" --method POST --input /tmp/bazaar-unsigned-blob.json --jq .sha)
-          echo "::notice::BAZAAR_UNSIGNED_BLOB=$sha"
-          echo "::notice::BAZAAR_UNSIGNED_SHA256=$(sha256sum "$apk" | cut -d' ' -f1)"
-          rm /tmp/bazaar-unsigned-blob.json
 
   emulator-validation:
     name: Test Android on emulator
