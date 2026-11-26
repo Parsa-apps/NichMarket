@@ -80,7 +80,7 @@ jobs:
 
   emulator-validation:
     name: Test Android on emulator
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/arena/aba102b0-nichmarket')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -102,6 +102,19 @@ jobs:
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim
           script: ./gradlew connectedDebugAndroidTest --stacktrace
+      - name: Summarize test failures
+        if: failure()
+        run: |
+          python3 - <<'PYCODE'
+          import glob, xml.etree.ElementTree as ET
+          for path in glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True):
+              root = ET.parse(path).getroot()
+              for case in root.iter('testcase'):
+                  for failure in case.findall('failure') + case.findall('error'):
+                      text = (failure.text or failure.get('message', 'failure'))[:3000]
+                      text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                      print(f"::error::{case.get('classname')}.{case.get('name')}: {text}")
+          PYCODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:

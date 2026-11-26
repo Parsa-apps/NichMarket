@@ -14,11 +14,11 @@ object Graph {
     lateinit var billing: MyketBillingManager
         private set
 
-    fun init(app: Application) {
+    fun init(app: Application, store: UserStore = UserStore(app), startBilling: Boolean = true) {
         repository = QuestionRepository(app)
-        userStore = UserStore(app)
+        userStore = store
         billing = MyketBillingManager(app, repository, userStore)
-        billing.start()
+        if (startBilling) billing.start()
     }
 }
 

@@ -55,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -733,6 +734,7 @@ private fun QuestionCard(
                             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .35f))
                         .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.outlineVariant.copy(alpha = .6f), RoundedCornerShape(14.dp))
+                        .testTag("answer-$i")
                         .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(i) })
                         .padding(end = 12.dp),
                     verticalAlignment = Alignment.CenterVertically

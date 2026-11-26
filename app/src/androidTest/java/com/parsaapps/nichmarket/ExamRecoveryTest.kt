@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -75,6 +76,26 @@ class ExamRecoveryTest {
             assertEquals(setOf("purchased"), store.purchasedSkus.first())
             assertEquals(listOf("v2:pack:2"), store.bookmarks.first())
         } finally { scope.cancel(); file.delete() }
+    }
+
+    @Test fun savedDraftCanBeReadAfterStoreIsRecreated() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = File(context.cacheDir, "reopen-${UUID.randomUUID()}.preferences_pb")
+        val job1 = SupervisorJob()
+        val store1 = UserStore(context, PreferenceDataStoreFactory.create(scope = CoroutineScope(job1 + Dispatchers.IO)) { file })
+        val latest = draft.copy(answers = mapOf(2 to 1), index = 1, revision = 1, markedQuestionIds = setOf(1))
+        val job2 = SupervisorJob()
+        try {
+            assertTrue(store1.beginExam(draft, null))
+            assertTrue(store1.updateExam(latest))
+            job1.cancelAndJoin() // Wait for the first DataStore to release its file.
+            val store2 = UserStore(context, PreferenceDataStoreFactory.create(scope = CoroutineScope(job2 + Dispatchers.IO)) { file })
+            assertEquals(latest, store2.activeExam.first())
+        } finally {
+            job1.cancelAndJoin()
+            job2.cancelAndJoin()
+            file.delete()
+        }
     }
 
     @Test fun draftTransactionsProtectNewerWritesAndCompleteAtomically() = runBlocking {

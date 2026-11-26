@@ -13,7 +13,7 @@ android {
         applicationId = "com.parsaapps.nichmarket"
         minSdk = 24
         targetSdk = 35
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.parsaapps.nichmarket.IsolatedTestRunner"
         versionCode = 2
         versionName = "1.1.0"
 
