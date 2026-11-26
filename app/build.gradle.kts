@@ -76,6 +76,9 @@ android {
         create("bazaar") {
             dimension = "store"
             applicationIdSuffix = ".bazaar"
+            // Bazaar already has versionCode 3 uploaded; do not change Myket's version.
+            versionCode = 4
+            versionName = "1.1.2"
             manifestPlaceholders["marketApplicationId"] = "com.farsitel.bazaar"
             manifestPlaceholders["marketBindAddress"] = "ir.cafebazaar.pardakht.InAppBillingService.BIND"
             manifestPlaceholders["marketPermission"] = "com.farsitel.bazaar.permission.PAY_THROUGH_BAZAAR"

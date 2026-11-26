@@ -24,6 +24,9 @@ class StoreIsolationTest(unittest.TestCase):
     def test_store_flavors_and_keys_are_separate(self):
         gradle = (ROOT / 'app/build.gradle.kts').read_text()
         self.assertIn('applicationIdSuffix = ".bazaar"', gradle)
+        bazaar = gradle.split('create("bazaar")', 1)[1].split('\n        }', 1)[0]
+        self.assertIn('versionCode = 4', bazaar)
+        self.assertIn('versionName = "1.1.2"', bazaar)
         self.assertIn('providers.environmentVariable("BAZAAR_PUBLIC_KEY")', gradle)
         self.assertIn('require(bazaarPublicKey != myketPublicKey)', gradle)
         self.assertIn('config/bazaar-public-key.txt', gradle)
@@ -34,7 +37,7 @@ class StoreIsolationTest(unittest.TestCase):
     def test_bazaar_public_key_is_the_one_provided(self):
         key = (ROOT / 'config/bazaar-public-key.txt').read_text().strip()
         decoded = base64.b64decode(key, validate=True)
-        self.assertEqual(hashlib.sha256(decoded).hexdigest(), '4ac6d01024d83ade2e0073896308770b341a66d3b24e1a9ff5b669bd2aad2e49')
+        self.assertEqual(hashlib.sha256(decoded).hexdigest(), 'ac2adecb71760e4aa608e6fa32bdb042b4f25d094ed649c27f4437bfdff2b432')
 
     def test_receipts_must_match_store_and_app(self):
         manager = (ROOT / 'app/src/bazaar/java/com/parsaapps/nichmarket/billing/BazaarBillingManager.kt').read_text()
