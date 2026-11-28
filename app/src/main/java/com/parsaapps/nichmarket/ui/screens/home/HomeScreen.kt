@@ -91,6 +91,7 @@ fun HomeScreen(
     onResults: () -> Unit,
     onBookmarks: () -> Unit,
     onResumeExam: (String) -> Unit,
+    onReview: () -> Unit,
     onSettings: () -> Unit
 ) {
     val vm: HomeViewModel = viewModel()
@@ -157,6 +158,10 @@ fun HomeScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuickAction("کارنامه‌ها", "نتایج و تحلیل", Icons.Rounded.Insights, Modifier.weight(1f), onResults)
                     QuickAction("علاقه‌مندی‌ها", "سؤال‌های ذخیره‌شده", Icons.Rounded.FavoriteBorder, Modifier.weight(1f), onBookmarks)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    QuickAction("مرور هوشمند", "رفع اشکال با فاصله‌گذاری", Icons.Rounded.Refresh, Modifier.weight(1f), onReview)
+                    Spacer(Modifier.weight(1f))
                 }
                 activeExam?.let { active ->
                     Card(
