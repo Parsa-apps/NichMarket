@@ -35,7 +35,7 @@ class BankStabilityTest(unittest.TestCase):
                 total += len(pack['questions'])
                 if pack['id'] in expected:
                     self.assertEqual(expected[pack['id']], (pack['sku'], len(pack['questions'])))
-        self.assertEqual(741, total)
+        self.assertEqual(743, total)
 
     def test_split_categories_are_merged_and_question_texts_are_unique(self):
         import re
