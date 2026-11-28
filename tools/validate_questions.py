@@ -54,7 +54,6 @@ def norm(text):
     text = unicodedata.normalize("NFKC", text or "")
     text = text.translate(str.maketrans({"ي": "ی", "ى": "ی", "ك": "ک", "ۀ": "ه", "ة": "ه"}))
     text = text.replace("\u200c", "").replace("\u200f", "")
-    text = re.sub(r'''[؟?!.,،؛:«»"'ـ]''', "", text)
     return " ".join(text.split()).strip().casefold()
 
 
