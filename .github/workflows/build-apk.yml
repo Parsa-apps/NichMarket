@@ -11,9 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate question bank
+      - name: Validate question bank and report roadmap progress
         run: |
           python3 tools/validate_questions.py
+          python3 tools/report_question_bank.py
           python3 -m unittest discover -s tests -v
       - uses: actions/setup-java@v4
         with:
