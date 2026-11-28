@@ -46,11 +46,27 @@ class ValidationTest(unittest.TestCase):
         self.assertIn("options", result.stdout)
         self.assertNotIn("Traceback", result.stderr)
 
-    def test_rejects_invalid_answer(self):
-        self.change(lambda d: d["packages"][0]["questions"][0].__setitem__("answerIndex", 4))
+    def test_rejects_incomplete_source_metadata(self):
+        self.change(lambda d: d["packages"][0]["questions"][0].__setitem__("sourceTitle", "منبع رسمی"))
         result = self.run_validator()
         self.assertEqual(result.returncode, 1)
-        self.assertIn("answerIndex", result.stdout)
+        self.assertIn("متادیتای منبع", result.stdout)
+
+    def test_rejects_non_https_source_url(self):
+        def add_source(d):
+            q = d["packages"][0]["questions"][0]
+            q.update(sourceTitle="منبع آزمون", sourceUrl="http://example.org", sourceCheckedAt="2026-11-28")
+        self.change(add_source)
+        result = self.run_validator()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("HTTPS", result.stdout)
+
+    def test_accepts_complete_source_metadata(self):
+        def add_source(d):
+            q = d["packages"][0]["questions"][0]
+            q.update(sourceTitle="نمونه منبع", sourceUrl="https://example.org/reference", sourceCheckedAt="2026-11-28")
+        self.change(add_source)
+        self.assertEqual(self.run_validator().returncode, 0)
 
 
 if __name__ == "__main__":
