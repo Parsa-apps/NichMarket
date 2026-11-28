@@ -24,6 +24,7 @@
 """
 
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -125,6 +126,19 @@ def check_pack(cat_id, pack):
             err(f"{qw}: difficulty نامعتبر است ({diff!r}) — مجاز: {sorted(ALLOWED_DIFFICULTY)}")
         else:
             difficulties[diff] += 1
+
+        # منبع سؤال اختیاری است تا بانک قدیمی سازگار بماند؛
+        # هرگاه ثبت شد، عنوان، URL امن و تاریخ بررسی باید کامل باشند.
+        source_fields = ("sourceTitle", "sourceUrl", "sourceCheckedAt")
+        source_values = [q.get(key) for key in source_fields]
+        if any(value is not None for value in source_values):
+            if not all(isinstance(value, str) and value.strip() for value in source_values):
+                err(f"{qw}: متادیتای منبع باید شامل sourceTitle، sourceUrl و sourceCheckedAt کامل باشد")
+            else:
+                if not source_values[1].startswith("https://"):
+                    err(f"{qw}: sourceUrl باید HTTPS باشد")
+                if not re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", source_values[2]):
+                    err(f"{qw}: sourceCheckedAt باید به قالب YYYY-MM-DD باشد")
 
         for bad in ("TODO", "لورم", "Lorem", "xxx"):
             if bad in text or bad in expl:
