@@ -39,7 +39,12 @@ data class Question(
     /** درس/سرفصل سوال (مثلاً «ریاضی و آمار») — برای نمایش در آزمون و مرور */
     val subject: String = "",
     /** سطح دشواری: «آسان» | «متوسط» | «دشوار» */
-    val difficulty: String = ""
+    val difficulty: String = "",
+    /** منبع قابل بررسی برای راستی‌آزمایی سؤال؛ در داده‌های قدیمی null می‌ماند. */
+    val sourceTitle: String? = null,
+    val sourceUrl: String? = null,
+    /** تاریخ بررسی منبع به قالب ISO-8601 (مثلاً 2026-11-28). */
+    val sourceCheckedAt: String? = null
 )
 
 /** نتیجه یک آزمون انجام‌شده */
