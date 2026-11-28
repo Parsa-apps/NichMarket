@@ -17,8 +17,8 @@ class ReleaseConfigTest(unittest.TestCase):
     def test_release_identifiers(self):
         gradle = (ROOT / 'app/build.gradle.kts').read_text()
         self.assertRegex(gradle, r'applicationId\s*=\s*"com\.parsaapps\.nichmarket"')
-        self.assertRegex(gradle, r'versionCode\s*=\s*3\b')
-        self.assertRegex(gradle, r'versionName\s*=\s*"1\.1\.1"')
+        self.assertRegex(gradle, r'versionCode\s*=\s*4\b')
+        self.assertRegex(gradle, r'versionName\s*=\s*"1\.1\.2"')
 
 class StoreIsolationTest(unittest.TestCase):
     def test_store_flavors_and_keys_are_separate(self):
