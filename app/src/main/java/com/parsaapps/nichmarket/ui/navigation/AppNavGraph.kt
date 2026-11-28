@@ -35,12 +35,14 @@ import com.parsaapps.nichmarket.ui.screens.exam.ExamScreen
 import com.parsaapps.nichmarket.ui.screens.home.HomeScreen
 import com.parsaapps.nichmarket.ui.screens.result.ResultScreen
 import com.parsaapps.nichmarket.ui.screens.results.ResultsScreen
+import com.parsaapps.nichmarket.ui.screens.review.ReviewScreen
 import com.parsaapps.nichmarket.ui.screens.settings.SettingsScreen
 
 object Routes {
     const val HOME = "home"
     const val BOOKMARKS = "bookmarks"
     const val RESULTS = "results"
+    const val REVIEW = "review"
     const val ABOUT = "about"
     const val SETTINGS = "settings"
     const val CATEGORY = "category/{catId}"
@@ -119,6 +121,7 @@ fun AppRoot(reduceMotion: Boolean = false) {
                     onResults = { navController.navigate(Routes.RESULTS) },
                     onBookmarks = { navController.navigate(Routes.BOOKMARKS) },
                     onResumeExam = { packId -> navController.navigate(Routes.exam(packId, -1)) },
+                    onReview = { navController.navigate(Routes.REVIEW) },
                     onSettings = { navController.navigate(Routes.SETTINGS) }
                 )
             }
@@ -156,6 +159,7 @@ fun AppRoot(reduceMotion: Boolean = false) {
                     onOpenResult = { resultId -> navController.navigate(Routes.result(resultId)) }
                 )
             }
+            composable(Routes.REVIEW) { ReviewScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.BOOKMARKS) {
                 BookmarksScreen()
             }
