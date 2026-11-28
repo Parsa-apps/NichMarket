@@ -1,11 +1,11 @@
 {
-  "omoomi_free_demo": {
+  "adabiat_free_demo": {
     "count": 10,
-    "sha256": "bbf979e4d9a083c38ae5e6618620617a0d0b6d92a22856f2827f2ba0755d556b"
+    "sha256": "36903012e6f045fde29dd418aa0a7e00d97c796950290927f84f6fc4b598b12e"
   },
-  "omoomi_full_1": {
-    "count": 66,
-    "sha256": "6f12f4d7b28f405bc8683c2229b4c5783f509bb7bc49835482086066db784449"
+  "adabiat_full_1": {
+    "count": 15,
+    "sha256": "243d2c1b29fbd6b02807df70f5c8db80d68455ca66464e6719eea94dccec13a0"
   },
   "amoozesh_free_demo": {
     "count": 10,
@@ -15,6 +15,10 @@
     "count": 40,
     "sha256": "6852bc334eebac289110355f15fb254838c9c3c132e4426e07c60c32eb1b3745"
   },
+  "amoozesh_full_2": {
+    "count": 20,
+    "sha256": "2b7db0436cbc9cdc7a85102e099e70ec7a8ca31f6ab9ba2086de6f5c5a47c721"
+  },
   "bank_free_demo": {
     "count": 10,
     "sha256": "b58b7ca755547b05c5ef92a3c32c8dfd914f35f7935d0db0f6a0a715e637dded"
@@ -23,6 +27,10 @@
     "count": 40,
     "sha256": "d1992494979043e4b822b1794232e6f4c73afa0aaa6663eaa1e24e6bb710ad00"
   },
+  "bank_full_2": {
+    "count": 20,
+    "sha256": "a9a29bd349252f4e36948941081e9c351797d52ca272b5e617d7b89e31df4e5e"
+  },
   "dadgostari_free_demo": {
     "count": 10,
     "sha256": "f9ed8ef209688605f1e1668eda16782e31a4351d282f7deeb6fb5fef0d31d21b"
@@ -30,5 +38,53 @@
   "dadgostari_full_1": {
     "count": 40,
     "sha256": "52c635632b3ebc91be6a94cda142c02bf747ec9e148f2ac6ea428c4de6f728c7"
+  },
+  "dadgostari_full_2": {
+    "count": 21,
+    "sha256": "895834245951552840458a3d5fafeebb343667069007240822e377087fd74779"
+  },
+  "it_free_demo": {
+    "count": 10,
+    "sha256": "27e20041f888bc9f00c3944970d81a6f11b9ff09d53a649083684902b11bfcab"
+  },
+  "it_full_1": {
+    "count": 25,
+    "sha256": "c84f7ee7b7affc0df4b22ad99f8f85f4e3991ffbf1d427d476c93701bcd655d6"
+  },
+  "maaref_free_demo": {
+    "count": 10,
+    "sha256": "26a440f00fde3f704dc46e7978af78b356fed0b3963354946b280bd9d0c151f9"
+  },
+  "maaref_full_1": {
+    "count": 18,
+    "sha256": "cde1875b9853fdf80ab57dd111d2f13ea5e7afae0b9e75a84d3e13c67158254c"
+  },
+  "modiriat_free_demo": {
+    "count": 10,
+    "sha256": "15835f6ea0c3fd1e4743db3644cc2417eab8dc39dc1e9ec47260d59554ff3f14"
+  },
+  "modiriat_full_1": {
+    "count": 25,
+    "sha256": "e6f800aa6dcbd19d175a609d08fc60cd1af84f5d45dd2fedb1f19893dbf7198e"
+  },
+  "omoomi_free_demo": {
+    "count": 10,
+    "sha256": "bbf979e4d9a083c38ae5e6618620617a0d0b6d92a22856f2827f2ba0755d556b"
+  },
+  "omoomi_full_1": {
+    "count": 66,
+    "sha256": "6f12f4d7b28f405bc8683c2229b4c5783f509bb7bc49835482086066db784449"
+  },
+  "omoomi_full_2": {
+    "count": 20,
+    "sha256": "38e58185d6b53596db8cd340b085f85aafa65bd1b4324091c56b13f9054aa788"
+  },
+  "riazi_free_demo": {
+    "count": 10,
+    "sha256": "1f4f4125120f662309b30300deeae86425151ac6b554b2b275819783cff71ffb"
+  },
+  "riazi_full_1": {
+    "count": 26,
+    "sha256": "bd7487d8b91825bad0a5c1c1981051413ecf5f2756f45eb469cc610769249887"
   }
 }
