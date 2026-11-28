@@ -35,6 +35,7 @@ class UserStore(private val context: Context, private val store: DataStore<Prefe
     private val KEY_PURCHASES = stringPreferencesKey("purchased_skus")
     private val KEY_BOOKMARKS = stringPreferencesKey("bookmarks")
     private val KEY_RESULTS = stringPreferencesKey("results")
+    private val KEY_REVIEW_ITEMS = stringPreferencesKey("spaced_review_items")
     private val KEY_ACTIVE_EXAM = stringPreferencesKey("active_exam")
     private val KEY_THEME = stringPreferencesKey("theme_mode")
     private val KEY_LARGE_TEXT = booleanPreferencesKey("large_text")
@@ -76,6 +77,12 @@ class UserStore(private val context: Context, private val store: DataStore<Prefe
     val results: Flow<List<ExamResult>> = store.data.map { prefs ->
         prefs[KEY_RESULTS]?.let { json.decodeFromString(ListSerializer(ExamResult.serializer()), it) }
             ?: emptyList()
+    }
+
+    val reviewItems: Flow<List<com.parsaapps.nichmarket.data.analysis.ReviewItem>> = store.data.map { prefs ->
+        prefs[KEY_REVIEW_ITEMS]?.let {
+            json.decodeFromString(ListSerializer(com.parsaapps.nichmarket.data.analysis.ReviewItem.serializer()), it)
+        } ?: emptyList()
     }
 
     val activeExam: Flow<ActiveExam?> = store.data.map { prefs ->
@@ -130,7 +137,27 @@ class UserStore(private val context: Context, private val store: DataStore<Prefe
             prefs[KEY_RESULTS] = json.encodeToString(
                 ListSerializer(ExamResult.serializer()), listOf(result) + withoutDuplicate.take(99)
             )
+            val reviewSerializer = ListSerializer(com.parsaapps.nichmarket.data.analysis.ReviewItem.serializer())
+            val existingReview = prefs[KEY_REVIEW_ITEMS]?.let { json.decodeFromString(reviewSerializer, it) } ?: emptyList()
+            val updatedReview = com.parsaapps.nichmarket.data.analysis.mergeMissedQuestions(existingReview, result)
+            if (updatedReview.isNotEmpty()) prefs[KEY_REVIEW_ITEMS] = json.encodeToString(reviewSerializer, updatedReview)
             if (active?.sessionId == sessionId) prefs.remove(KEY_ACTIVE_EXAM)
+        }
+    }
+
+    suspend fun saveReviewItem(item: com.parsaapps.nichmarket.data.analysis.ReviewItem) {
+        store.edit { prefs ->
+            val serializer = ListSerializer(com.parsaapps.nichmarket.data.analysis.ReviewItem.serializer())
+            val current = prefs[KEY_REVIEW_ITEMS]?.let { json.decodeFromString(serializer, it) } ?: emptyList()
+            prefs[KEY_REVIEW_ITEMS] = json.encodeToString(serializer, current.filterNot { it.key == item.key } + item)
+        }
+    }
+
+    suspend fun removeReviewItem(key: String) {
+        store.edit { prefs ->
+            val serializer = ListSerializer(com.parsaapps.nichmarket.data.analysis.ReviewItem.serializer())
+            val current = prefs[KEY_REVIEW_ITEMS]?.let { json.decodeFromString(serializer, it) } ?: emptyList()
+            prefs[KEY_REVIEW_ITEMS] = json.encodeToString(serializer, current.filterNot { it.key == key })
         }
     }
 
