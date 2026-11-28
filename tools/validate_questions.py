@@ -137,7 +137,7 @@ def check_pack(cat_id, pack):
             else:
                 if not source_values[1].startswith("https://"):
                     err(f"{qw}: sourceUrl باید HTTPS باشد")
-                if not re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", source_values[2]):
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", source_values[2]):
                     err(f"{qw}: sourceCheckedAt باید به قالب YYYY-MM-DD باشد")
 
         for bad in ("TODO", "لورم", "Lorem", "xxx"):
