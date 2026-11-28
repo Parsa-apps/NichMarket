@@ -35,7 +35,7 @@ class BankStabilityTest(unittest.TestCase):
                 total += len(pack['questions'])
                 if pack['id'] in expected:
                     self.assertEqual(expected[pack['id']], (pack['sku'], len(pack['questions'])))
-        self.assertEqual(503, total)
+        self.assertEqual(743, total)
 
 
 if __name__ == '__main__':
