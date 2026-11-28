@@ -1,1 +1,13 @@
-{"files":["omoomi.json","amoozesh.json","bank.json","dadgostari.json","adabiat.json","it.json","maaref.json","modiriat.json","riazi.json","omoomi2.json","bank2.json","dadgostari2.json","amoozesh2.json"]}
+{
+  "files": [
+    "omoomi.json",
+    "amoozesh.json",
+    "bank.json",
+    "dadgostari.json",
+    "adabiat.json",
+    "it.json",
+    "maaref.json",
+    "modiriat.json",
+    "riazi.json"
+  ]
+}

@@ -35,7 +35,29 @@ class BankStabilityTest(unittest.TestCase):
                 total += len(pack['questions'])
                 if pack['id'] in expected:
                     self.assertEqual(expected[pack['id']], (pack['sku'], len(pack['questions'])))
-        self.assertEqual(743, total)
+        self.assertEqual(741, total)
+
+    def test_split_categories_are_merged_and_question_texts_are_unique(self):
+        import re
+        categories = []
+        texts = []
+        index = json.loads((BANK / 'index.json').read_text(encoding='utf-8'))
+        for name in index['files']:
+            category = json.loads((BANK / name).read_text(encoding='utf-8'))
+            categories.append(category['id'])
+            for pack in category['packages']:
+                for question in pack['questions']:
+                    value = question['text'].replace('ي', 'ی').replace('ى', 'ی').replace('ك', 'ک')
+                    value = value.replace('ۀ', 'ه').replace('ة', 'ه').replace('‌', '')
+                    value = re.sub(r'''[؟?!.,،؛:«»"'ـ]''', "", value)
+                    texts.append(' '.join(value.split()).strip())
+        self.assertEqual(len(categories), len(set(categories)))
+        self.assertEqual(9, len(categories))
+        self.assertEqual(len(texts), len(set(texts)))
+        package_ids = {p['id'] for name in index['files']
+                       for p in json.loads((BANK / name).read_text(encoding='utf-8'))['packages']}
+        self.assertTrue({'bank_full_2', 'dadgostari_full_2', 'omoomi_full_2', 'amoozesh_full_2'} <= package_ids)
+        self.assertFalse({'bank2.json', 'dadgostari2.json', 'omoomi2.json', 'amoozesh2.json'} & set(index['files']))
 
 
 if __name__ == '__main__':

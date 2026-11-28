@@ -26,6 +26,7 @@
 import json
 import re
 import sys
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
@@ -50,7 +51,11 @@ def warn(msg):
 
 
 def norm(text):
-    return " ".join((text or "").split())
+    text = unicodedata.normalize("NFKC", text or "")
+    text = text.translate(str.maketrans({"ي": "ی", "ى": "ی", "ك": "ک", "ۀ": "ه", "ة": "ه"}))
+    text = text.replace("\u200c", "").replace("\u200f", "")
+    text = re.sub(r'''[؟?!.,،؛:«»"'ـ]''', "", text)
+    return " ".join(text.split()).strip().casefold()
 
 
 def check_pack(cat_id, pack):
